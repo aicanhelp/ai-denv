@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
 curl -s -L https://nvidia.github.io/nvidia-container-runtime/$distribution/nvidia-container-runtime.repo | \
   sudo tee /etc/yum.repos.d/nvidia-container-runtime.repo

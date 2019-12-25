@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 curl -s -L https://nvidia.github.io/nvidia-container-runtime/gpgkey | \
   sudo apt-key add -
 distribution=$(. /etc/os-release;echo $ID$VERSION_ID)

@@ -2,6 +2,8 @@ import json
 import os
 import subprocess
 
+from past.types import unicode
+
 git_server = "http://172.20.92.53/"
 
 
@@ -10,19 +12,19 @@ def clone(fold_name, repository_name):
     try:
         if os.path.exists(fold_name + '/.git'):
             os.chdir(fold_name)
-            print 'Update: ' + fold_name + ':' + repository_name + ': in ' + os.path.abspath(os.curdir)
+            print('Update: ' + fold_name + ':' + repository_name + ': in ' + os.path.abspath(os.curdir))
             subprocess.Popen(['git', 'pull']).communicate()
         else:
             if not os.path.exists(fold_name):
-                 os.makedirs(fold_name)
+                os.makedirs(fold_name)
             os.chdir(fold_name)
-            print 'Clone: ' + fold_name + ':' + repository_name + ': in ' + os.path.abspath(os.curdir)
+            print('Clone: ' + fold_name + ':' + repository_name + ': in ' + os.path.abspath(os.curdir))
             subprocess.Popen(['git', 'clone', git_server + repository_name, '.']).communicate()
     except Exception as e:
-        print e
+        print(e)
     finally:
         os.chdir(cur_dir)
-        print 'Current Directory:'+cur_dir
+        print('Current Directory:' + cur_dir)
 
 
 def run():
@@ -33,7 +35,7 @@ def run():
 
 def do_action(json_obj, pre_key, fold_name, func):
     if isinstance(json_obj, unicode):
-        print json_obj
+        print(json_obj)
         return
 
     if len(fold_name) == 0:

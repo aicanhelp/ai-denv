@@ -1,0 +1,103 @@
+[base]
+name=CentOS-$releasever - Base
+baseurl=http://10.146.3.105:8081/repository/yum-repo-group/$releasever/os/$basearch/
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+
+#released updates
+[updates]
+name=CentOS-$releasever - Updates
+baseurl=http://10.146.3.105:8081/repository/yum-repo-group/$releasever/updates/$basearch/
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+
+#additional packages that may be useful
+[extras]
+name=CentOS-$releasever - Extras
+#baseurl=http://10.146.3.105:8081/repository/yum-repo-group/$releasever/extras/$basearch/
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+
+#additional packages that extend functionality of existing packages
+[centosplus]
+name=CentOS-$releasever - Plus
+baseurl=http://10.146.3.105:8081/repository/yum-repo-group/$releasever/centosplus/$basearch/
+gpgcheck=1
+enabled=0
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+
+[cr]
+name=CentOS-$releasever - cr
+baseurl=http://10.146.3.105:8081/repository/yum-repo-group/$releasever/cr/$basearch/
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+enabled=0
+
+[base-debuginfo]
+name=CentOS-7 - Debuginfo
+baseurl=http://debuginfo.centos.org/7/$basearch/
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-Debug-7
+enabled=0
+
+[fasttrack]
+name=CentOS-7 - fasttrack
+baseurl=http://10.146.3.105:8081/repository/yum-repo-group/$releasever/fasttrack/$basearch/
+gpgcheck=1
+enabled=0
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+
+[base-source]
+name=CentOS-$releasever - Base Sources
+baseurl=http://10.146.3.105:8081/repository/yum-repo-group/$releasever/os/Source/
+gpgcheck=1
+enabled=0
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+
+#released updates
+[updates-source]
+name=CentOS-$releasever - Updates Sources
+baseurl=http://10.146.3.105:8081/repository/yum-repo-group/$releasever/updates/Source/
+gpgcheck=1
+enabled=0
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+
+#additional packages that may be useful
+[extras-source]
+name=CentOS-$releasever - Extras Sources
+baseurl=http://10.146.3.105:8081/repository/yum-repo-group/$releasever/extras/Source/
+gpgcheck=1
+enabled=0
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+
+#additional packages that extend functionality of existing packages
+[centosplus-source]
+name=CentOS-$releasever - Plus Sources
+baseurl=http://10.146.3.105:8081/repository/yum-repo-group/$releasever/centosplus/Source/
+gpgcheck=1
+enabled=0
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+
+[libnvidia-container]
+name=libnvidia-container
+baseurl=http://10.146.3.105:8081/repository/yum-repo-group/centos7/$basearch
+repo_gpgcheck=1
+gpgcheck=0
+enabled=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-NVIDIA-DOCKER
+
+[nvidia-container-runtime]
+name=nvidia-container-runtime
+baseurl=http://10.146.3.105:8081/repository/yum-repo-group/centos7/$basearch
+repo_gpgcheck=1
+gpgcheck=0
+enabled=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-NVIDIA-DOCKER
+
+[nvidia-docker]
+name=nvidia-docker
+baseurl=hhttp://10.146.3.105:8081/repository/yum-repo-group/centos7/$basearch
+repo_gpgcheck=1
+gpgcheck=0
+enabled=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-NVIDIA-DOCKER

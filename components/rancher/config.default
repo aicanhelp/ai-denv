@@ -1,0 +1,13 @@
+
+HTTP_PROXY="10.146.3.105:8888"
+DOCKER_PROXY="10.146.3.105:8083/"
+
+SERVER_ADDRESS="10.167.160.39"
+LOCAL_ADDRESS="10.167.160.39"
+
+TOKEN="tcnfkd68tksnmz72f99bfxxj8ck4kl8s6r4r4nrh8plgwr8kwsk9tq"
+CA_CHECKSUM="e62248d2b37ea945ad51d88a0c8995ae7cbdee59be20934cbdfa42b37a70a204"
+
+NODE_NAME="master"
+
+test -e config && source config

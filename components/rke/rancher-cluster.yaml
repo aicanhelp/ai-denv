@@ -1,0 +1,19 @@
+nodes:
+- address: 10.167.168.61
+  internal_address: 10.167.168.61
+  user: miguai
+  role: [controlplane,worker,etcd]
+- address: 10.167.168.67
+  internal_address: 10.167.168.67
+  user: miguai
+  role: [controlplane,worker,etcd]
+- address: 10.167.168.68
+  internal_address: 10.167.168.68
+  user: miguai
+  role: [controlplane,worker,etcd]
+
+services:
+  etcd:
+    snapshot: true
+    creation: 6h
+    retention: 24h

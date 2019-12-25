@@ -1,0 +1,3 @@
+deb http://10.146.3.105:8081/repository/apt-xenial-proxy/ xenial main restricted stable
+
+deb http://10.146.3.105:8081/repository/apt-docker-proxy/ xenial main restricted stable

@@ -1,0 +1,28 @@
+version: 0.1
+log:
+  level: info
+  fields:
+    service: registry
+    environment: development
+storage:
+    cache:
+        blobdescriptor: inmemory
+    filesystem:
+        rootdirectory: /var/lib/registry/store
+    maintenance:
+        uploadpurging:
+            enabled: false
+http:
+    addr: 0.0.0.0:5000
+    secret: asecretforlocaldevelopment
+    debug:
+        addr: localhost:5001
+    headers:
+        X-Content-Type-Options: [nosniff]
+proxy:
+  remoteurl: https://w6kes2oz.mirror.aliyuncs.com
+health:
+  storagedriver:
+    enabled: true
+    interval: 10s
+    threshold: 3

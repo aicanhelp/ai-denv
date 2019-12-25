@@ -1,0 +1,66 @@
+{
+  "ai-abilities": {
+    "ai-audio-recognition": {
+      "ai-audio-recognition-musicgene": "lingxiyun/musicgeneai.git"
+    },
+    "ai-cartoon": {
+      "ai-cartoon-characterdetection": "lingxiyun/characterdetectionai.git",
+      "ai-cartoon-control": "lingxiyun/cartoon_control.git",
+      "ai-cartoon-cos": "lingxiyun/instant_cos.git",
+      "ai-cartoon-coverextract": "lingxiyun/coverextractionai.git",
+      "ai-cartoon-ipcharacter": "lingxiyun/relevantcharacterai.git"
+    },
+    "ai-face": {
+      "ai-face-caffee": "lingxiyun/face_pay_coffee.git",
+      "ai-face-music": "miguai/music_ai.git"
+    },
+    "ai-face2cartoon": {
+      "face2cartoon-second_phrase": "miguai/face2cartoon-second_phrase.git",
+      "pk-ai": "miguai/pk-ai.git"
+    },
+    "ai-video-action": {
+      "ai-video-action-dance": "lingxiyun/dance.git",
+      "ai-video-action-exercise": "lingxiyun/shanpaoai.git"
+    },
+    "ai-video-clip": {
+      "ai-videoclip-game": "lingxiyun/gameai.git",
+      "ai-videoclip-music": "lingxiyun/Concert_Clip_boshi.git",
+      "ai-videoclip-premierleague": "lingxiyun/premier_league.git",
+      "ai-videoclip-worldcup2018": "lingxiyun/aihighlightclip_worldcup2018.git"
+    },
+    "ai-video-live": {
+      "ai-video-live-emotion": "lingxiyun/mgaiemo.git"
+    },
+    "ai-video-process": {
+      "ai-video-process-optimization": "lingxiyun/video_optimization.git"
+    },
+    "ai-video-recognition": {
+      "ai-video-recognition-ad": "lingxiyun/mgaiadadv.git",
+      "ai-video-recognition-adcar": "lingxiyun/mgaiadcar.git",
+      "ai-video-recognition-adstar": "lingxiyun/mgaiadstar.git",
+      "ai-video-recognition-label": "lingxiyun/video-labelling.git",
+      "ai-video-recognition-search": "lingxiyun/video_search.git",
+      "ai-video-recognition-tags": "lingxiyun/video_tags.git"
+    },
+    "ai-audit":{
+      "ai-audit-all": "UserCenters/csp.git"
+    }
+  },
+  "ai-deepwise": {
+    "knowledge-graph": "lingxiyun/knowledge-graph.git",
+    "recommend-system": "lingxiyun/recommend-system.git"
+  },
+  "ai-incubating": {
+    "ai-incubating-videoclip": "miguai/ai_incubating_videoclip.git",
+    "ai-incubating-cv": "miguai/ai_incubating_cv.git",
+    "ai-incubating-kd": "miguai/ai_incubating_kd.git"
+  },
+  "ai-platform": {
+    "pf-console": "Planet/Saturn.git",
+    "pf-infer": "Planet/Venus.git",
+    "pf-learning": "Planet/Mars.git",
+    "pf-mark": "Planet/Jupiter.git",
+    "pf-model": "Planet/Uranus.git",
+    "pf-pass": "Planet/Mercury.git"
+  }
+}

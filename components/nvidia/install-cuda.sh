@@ -15,6 +15,8 @@ https://developer.download.nvidia.cn/compute/machine-learning/cudnn/secure/7.6.5
 
 https://developer.download.nvidia.cn/compute/machine-learning/cudnn/secure/7.6.5.32/Production/10.0_20191031/Ubuntu18_04-x64/libcudnn7_7.6.5.32-1%2Bcuda10.0_amd64.deb?weER4M4IjMJrYOdLv1ZGM2PeYRb74Ym8l6FTDUgrLL9ltVXXx9Iim79MxkTMD6CLl0MUYIdSPSwLNxdlk4rtIwij83IPOIZXK2Uv3DV3w39hoM3Lh8oQrolMoCBv03cjhrnI6v4X0kx6rzyE6gmtIiOYcQPplma_n7Nsd_weQdu1Btg7FF1HWqivGwLo74TEEGWGgzTE0wBpSg-CtzFEzl7gTXtE5ncNKGaTONPtzTFUrcHgK3H9tAHKbNtj9ozq
 
+https://developer.download.nvidia.cn/compute/machine-learning/cudnn/secure/7.6.5.32/Production/10.0_20191031/Ubuntu18_04-x64/libcudnn7_7.6.5.32-1%2Bcuda10.0_amd64.deb?dsv0MdRil4kbyudzSKMoCaK2jSRL1vTZ2vPCoFt8_W0PQd1Wp6C2K9hZtp7Hnf9GcavOWL39B7fRFFSyomZ_yN4FUyYoftjZ33Goum-GrdAFwdIiWTglOxtT1HFn1Qb8m-1xumV61gW8HpAkRuMidbmZYOf4x7rd_aWBWvr4xE_KAeTEKwdpgD9pM47GLD7EIqCTHUoBjJi16-E4ll7csj0J-0IJ-GsQz94eA7AmiEpSGbQVYvfwhXtl-xyv5ZyE
+
 wget http://developer.download.nvidia.com/compute/cuda/10.2/Prod/local_installers/cuda_10.2.89_440.33.01_linux.run
 sudo sh cuda_10.2.89_440.33.01_linux.run
 

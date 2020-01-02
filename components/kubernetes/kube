@@ -1,3 +1,4 @@
 #!/usr/bin/env bash
 
+#default: ~/.kube/config
 kubectl --kubeconfig /custom/path/kube.config $*

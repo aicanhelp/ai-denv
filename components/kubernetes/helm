@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+#default: ~/.kube/config
+helm --kubeconfig /custom/path/kube.config $*

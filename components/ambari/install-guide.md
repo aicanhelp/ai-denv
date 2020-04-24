@@ -49,6 +49,9 @@ deb http://127.0.0.1/HDP/ubuntu18/3.1.0.0-78/ HDP main
 执行 apt-get install ambari-server成功后，执行
 ambari-server setup 开始建立配置
 
+改变端口，打开文件,/etc/ambari-server/conf/ambari.conf, add:
+client.api.port=
+
 选择自定义JDK
 
 ![在这里插入图片描述](imgs/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaWppYXNoZW5n,size_16,color_FFFFFF,t_70-20200322235932869.png)

@@ -1,0 +1,1 @@
+FROM nvcr.io/nvidia/clara-train-sdk:v1.1-py3

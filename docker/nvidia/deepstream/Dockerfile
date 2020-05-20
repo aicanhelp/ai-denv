@@ -1,0 +1,1 @@
+FROM nvcr.io/nvidia/deepstream:4.0.1-19.09-devel

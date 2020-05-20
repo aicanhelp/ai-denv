@@ -1,0 +1,1 @@
+FROM nvcr.io/nvidia/caffe:19.09-py2

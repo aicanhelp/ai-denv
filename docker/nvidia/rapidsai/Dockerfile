@@ -1,0 +1,1 @@
+FROM nvcr.io/nvidia/rapidsai/rapidsai:0.10-cuda9.2-runtime-ubuntu18.04

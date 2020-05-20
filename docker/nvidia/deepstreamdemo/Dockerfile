@@ -1,0 +1,1 @@
+FROM nvcr.io/nvidia/video-analytics-demo:latest

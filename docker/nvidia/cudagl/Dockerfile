@@ -1,0 +1,1 @@
+FROM nvcr.io/nvidia/cudagl:10.0-base-centos7

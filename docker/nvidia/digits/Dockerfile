@@ -1,0 +1,1 @@
+FROM nvcr.io/nvidia/digits:19.09-tensorflow

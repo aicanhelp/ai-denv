@@ -1,0 +1,1 @@
+FROM nvcr.io/nvidia/cntk:18.08-py3

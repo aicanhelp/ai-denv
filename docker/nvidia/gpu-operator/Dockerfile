@@ -1,0 +1,1 @@
+FROM nvcr.io/nvidia/gpu-operator:1.0.0-techpreview.1

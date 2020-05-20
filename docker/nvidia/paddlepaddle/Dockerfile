@@ -1,0 +1,1 @@
+FROM nvcr.io/partners/paddlepaddle:0.11-alpha

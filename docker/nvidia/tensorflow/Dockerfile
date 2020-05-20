@@ -1,0 +1,1 @@
+FROM nvcr.io/nvidia/tensorflow:19.09-py3

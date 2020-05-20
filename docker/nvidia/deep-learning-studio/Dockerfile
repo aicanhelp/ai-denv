@@ -1,0 +1,1 @@
+FROM nvcr.io/partners/deep-learning-studio:cuda9-2.5.1

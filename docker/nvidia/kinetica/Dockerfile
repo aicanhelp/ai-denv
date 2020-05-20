@@ -1,0 +1,1 @@
+FROM nvcr.io/partners/kinetica:cuda9-6.1.0.9

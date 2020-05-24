@@ -1,0 +1,3 @@
+[submodule "resources/free-for-dev"]
+	path = resources/free-for-dev
+	url = https://github.com/ripienaar/free-for-dev.git

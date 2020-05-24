@@ -1,5 +1,5 @@
 ## PyTorch Release 20.3
-The NVIDIA container image for PyTorch, release 19.06, is available on NGC.
+The NVIDIA container image for PyTorch, release 20.03, is available on NGC.
 Note: This docker definition is from nvidia. It's made for pulling the docker image by Aliyun easily.
 from [PyTorch Release 20.3](https://docs.nvidia.com/deeplearning/frameworks/pytorch-release-notes/rel_20-03.html#rel_20-03)
 

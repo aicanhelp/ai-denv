@@ -1,2 +1,0 @@
-FROM thufeifeibear/turbo_transformers:0.2.0-cuda10.0-cudnn7-devel-ubuntu18.04-gpu-release
-

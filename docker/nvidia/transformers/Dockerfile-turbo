@@ -1,1 +1,15 @@
-FROM thufeifeibear/turbo_transformers:0.2.0-cuda10.0-cudnn7-devel-ubuntu18.04-gpu-release
+FROM registry.cn-beijing.aliyuncs.com/aimonvidia/transformers-all
+
+WORKDIR /workspace
+
+RUN git clone https://github.com/Tencent/TurboTransformers --recursive
+
+RUN cd /workspace/fast_transformers && \
+    mkdir build && \
+    cd build && \
+    cmake .. -DWITH_GPU=OFF && \
+    make -j 8 && \
+    pip install ./turbo_transformers/python/pypackage/dist/turbo_transformers-0.0.0-cp37-cp37m-linux_x86_64.whl
+
+
+

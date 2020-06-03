@@ -7,18 +7,25 @@ RUN apt update && \
                    build-essential \
                    git \
                    curl \
+                   wget bzip2 build-essential ninja-build g++ \
                    ca-certificates \
                    python3 \
                    python3-pip && \
     rm -rf /var/lib/apt/lists
 
+ENV PATH=/opt/miniconda3/bin:${PATH} CONDA_PREFIX=/opt/miniconda3
+RUN curl -LO http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+    bash Miniconda3-latest-Linux-x86_64.sh -p /opt/miniconda3 -b && \
+    rm Miniconda3-latest-Linux-x86_64.sh && \
+    conda update -y conda && \
+    conda install pytorch=1.5.0 torchvision==0.6.0 cudatoolkit=10.1 -c pytorch && \
+    conda install curl conda-verify conda-build mkl-include cmake -c anaconda && \
+    conda install git git-lfs docopt -c conda-forge  && \
+    conda clean -afy
+
 RUN python3 -m pip install --no-cache-dir --upgrade pip && \
     python3 -m pip install --no-cache-dir \
-    mkl \
-    torch \
-    sklearn \
-    tensorflow \
-    transformers
+    contexttimer future transformers tensorflow docopt
 
 RUN ln -s /usr/bin/python3 /usr/bin/python
 

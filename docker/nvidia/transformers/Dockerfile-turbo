@@ -1,8 +1,5 @@
 FROM registry.cn-beijing.aliyuncs.com/aimonvidia/transformers-all
 
-RUN apt-get update && \
-    apt-get install -y curl cmake git wget bzip2 build-essential ninja-build g++ && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /workspace
 
 RUN git clone https://github.com/Tencent/TurboTransformers --recursive

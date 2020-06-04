@@ -9,7 +9,7 @@ RUN cd /workspace/TurboTransformers && \
     cd build && \
     cmake .. -DWITH_GPU=OFF && \
     make -j 8 && \
-    pip install ./turbo_transformers/python/pypackage/dist/turbo_transformers-0.0.0-cp37-cp37m-linux_x86_64.whl
+    pip install ./turbo_transformers/python/pypackage/dist/turbo_transformers-0.2.0-cp37-cp37m-linux_x86_64.whl
 
 
 

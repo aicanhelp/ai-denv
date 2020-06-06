@@ -1,6 +1,6 @@
-FROM nvidia/cuda:10.1-cudnn7-runtime-ubuntu18.04
-LABEL maintainer="Hugging Face"
-LABEL repository="transformers"
+FROM nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04
+LABEL maintainer="modongsongml@126.com"
+LABEL repository="ai-denv"
 
 RUN apt update && \
     apt install -y bash \

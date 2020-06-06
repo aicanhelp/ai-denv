@@ -1,4 +1,6 @@
 FROM registry.cn-beijing.aliyuncs.com/aimonvidia/transformers-all
+LABEL maintainer="modongsongml@126.com"
+LABEL repository="ai-denv"
 
 WORKDIR /workspace
 

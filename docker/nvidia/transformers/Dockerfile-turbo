@@ -9,8 +9,8 @@ RUN git clone https://github.com/Tencent/TurboTransformers --recursive
 RUN cd /workspace/TurboTransformers && \
     mkdir build && \
     cd build && \
-    cmake .. -DWITH_GPU=ON && \
-    make -j 8 && \
+    cmake -G Ninja -DCMAKE_BUILD_TYPE=Release .. -DWITH_GPU=ON && \
+    ninja && \
     pip install ./turbo_transformers/python/pypackage/dist/turbo_transformers-0.2.0-cp37-cp37m-linux_x86_64.whl
 
 

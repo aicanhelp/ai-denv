@@ -25,6 +25,7 @@ RUN curl -LO http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.s
 
 RUN python3 -m pip install --no-cache-dir --upgrade pip && \
     python3 -m pip install --no-cache-dir \
+    onnxruntime onnx \
     contexttimer future transformers tensorflow docopt \
     pandas tqdm scikit-learn python-box boltons
 

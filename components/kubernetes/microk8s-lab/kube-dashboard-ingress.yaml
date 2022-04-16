@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: ingress-kube-dashboard
+  annotations:
+    # use the shared ingress-nginx
+    # kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    #nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    #nginx.ingress.kubernetes.io/secure-backends: "false"
+spec:
+  tls:
+  - hosts:
+    - dashboard.kube.com
+    secretName: kube-dasboard-ssl
+  rules:
+  - host: dashboard.kube.com
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: kubernetes-dashboard
+          servicePort: 443

@@ -1,0 +1,8 @@
+Host github
+    HostName github.com
+    IdentityFile ~/.ssh/github-aican
+    User git
+Host github-aican
+    HostName github.com
+    IdentityFile ~/.ssh/github-aican
+    User git

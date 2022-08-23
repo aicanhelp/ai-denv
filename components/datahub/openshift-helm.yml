@@ -1,0 +1,8 @@
+apiVersion: helm.openshift.io/v1beta1
+kind: HelmChartRepository
+metadata:
+  name: datahub-repo
+spec:
+  name: datahub-repo
+  connectionConfig:
+    url: https://helm.datahubproject.io/

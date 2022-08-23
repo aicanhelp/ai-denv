@@ -1,0 +1,27 @@
+service:
+  type: NodePort 
+
+ingressRoute:
+  dashboard:
+    enabled: false
+ports:
+  traefik:
+    port: 9000
+    expose: true
+  web:
+    port: 8000
+    expose: true
+  websecure:
+    port: 8443
+    expose: true
+persistence:
+  enabled: true
+  name: data
+  accessMode: ReadWriteOnce
+  size: 5G
+  storageClass: "openebs-hostpath"
+  path: /data
+additionalArguments:
+  - "--serversTransport.insecureSkipVerify=true"
+  - "--api.insecure=true"
+  - "--api.dashboard=true"

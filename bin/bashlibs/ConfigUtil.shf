@@ -1,0 +1,108 @@
+#!/bin/sh
+##############################################################################################
+#
+# ConfigurationUtil.shf
+# This script file defines many common functions for Configuration file(property file or xml file)
+#
+# Author: ndb478
+#
+##############################################################################################
+
+#function: Conf_getPropertyFromFile
+#get property value from a property file
+#usage: Conf_getPropertyFromFile fileName propertyName retVarName
+function Conf_getPropertyFromFile()
+{
+    local l_fileName="${1:?'[ERROR] Conf_getPropertyFromFile: argument file name required!'}"
+    local l_propertyName="${2:?'[ERROR] Conf_getPropertyFromFile: argument property name required!'}"
+    local l_retVar="${3:?'[ERROR] Conf_getPropertyFromFile: argument return variable name required!'}"
+
+    if [ ! -f $l_fileName ]; then
+       eval "$l_retVar="
+       return 0
+    fi
+
+    local _l_cmd="awk '{if(match(\$0,/^$l_propertyName( )*=( )*/)) \
+                  {len=length(\$0)-RLENGTH;retValue=substr(\$0,RLENGTH+1,len)}} \
+                  END{print \"=\"retValue}' $l_fileName"
+    local _l_temp_str=`eval $_l_cmd`
+    if [ "$_l_temp_str" = "=" ]; then
+       Log_debug "Can not find '${l_propertyName}' in '${l_fileName}'."
+       eval "$l_retVar="
+    else
+       _l_temp_str=`echo $_l_temp_str | tr '\r\n' '\n'`
+       _l_temp_str=${_l_temp_str:1}
+       eval "$l_retVar='$_l_temp_str'"
+       Log_debug "Found '${l_propertyName}=$_l_temp_str' in ${l_fileName}."
+    fi
+}
+
+#function: Conf_findPropertyFromFile
+#get property value from a property file
+#usage: Conf_findPropertyFromFile fileName propertyName
+function Conf_findPropertyFromFile()
+{
+    local l_fileName="${1:?'[ERROR] Conf_getPropertyFromFile: argument file name required!'}"
+    local l_propertyName="${2:?'[ERROR] Conf_getPropertyFromFile: argument property name required!'}"
+
+    if [ ! -f $l_fileName ]; then
+       return 1
+    fi
+
+    local _l_temp_value
+    Conf_getPropertyFromFile $l_fileName $l_propertyName _l_temp_value
+
+    test ! -z "$_l_temp_value"
+}
+
+#function: Conf_setPropertyToFile
+#set property value to a property file
+#usage: Conf_setPropertyToFile fileName propertyName propertyValue
+function Conf_setPropertyToFile()
+{
+    local l_fileName="${1:?'[ERROR] Conf_setPropertyToFile: argument file name required!'}"
+    local l_propertyName="${2:?'[ERROR] Conf_setPropertyToFile: argument property name required!'}"
+    local l_propertyValue="${3:?'[ERROR] Conf_setPropertyToFile: argument property value required!'}"
+    if [ ! -e $l_fileName ]; then
+       local _l_dir=`dirname "${l_fileName}"`
+       mkdir -p "${_l_dir}"
+       echo "$l_propertyName=$l_propertyValue" >> $l_fileName
+    else
+       if ! Conf_findPropertyFromFile $l_fileName $l_propertyName; then
+          awk -vpropertyName="$l_propertyName" -vpropertyValue="$l_propertyValue" '{print $0}END{print propertyName"="propertyValue}' $l_fileName > $l_fileName.tmp
+       else
+          awk -vpropertyName="$l_propertyName" -vpropertyValue="$l_propertyValue" '{pattern="^"propertyName" *="; if(match($0,pattern)){print propertyName"="propertyValue} else {print $0}}' $l_fileName > $l_fileName.tmp
+       fi
+       cat $l_fileName.tmp >$l_fileName
+       rm -f $l_fileName.tmp
+    fi
+
+    log "Saved property into file '$l_fileName': '$l_propertyName=$l_propertyValue'."
+}
+
+#function: Conf_findValueInXml
+#Find the property value from a specifiy key and a find regular expression string
+#usage: Conf_findValueInXml xmlFile regexp property returnVar
+function Conf_findValueInXml()
+{
+    local _l_file=${1:?'[ERROR]Conf_findValueInXml: argument xml file required!'}
+    local _l_reg=${2:?'[ERROR]Conf_findValueInXml: argument regstring required!'}
+    local _l_property=${3:?'[ERROR]Conf_findValueInXml: argument property required!'}
+    local _l_ret=${4:?'[ERROR]Conf_findValueInXml: argument retVar required!'}
+
+    local value=`eval "grep -e '${_l_reg}' '$_l_file' | sed 's/.*${_l_property} *= *\" *//' | sed 's/ *\" *.*//'"`
+    [ "$value" = "" ] && Log_debug "Can not find '${_l_property}' in '${_l_file}' with '${_l_reg}'"
+    [ "$value" != "" ] && Log_debug "Found '${_l_property}=${value}' in '${_l_file}' with '${_l_reg}'"
+    eval "$_l_ret=$value"
+}
+
+#function: Conf_removeCommentsInXml
+#remove all comments in a specified xml file and out put to a specified file
+#usage: Conf_removeCommentsInXml inputFile outputFile
+function Conf_removeCommentsInXml()
+{
+    local _l_in=${1:?'[ERROR]Conf_removeCommentsInXml: argument input xml file required!'}
+    local _l_out=${2:?'[ERROR]Conf_removeCommentsInXml: argument output  xml file required!'}
+
+    awk '{if(match($0,".*<!--")){c=1;}if(c==0){print $0;}if(match($0,"-->")){c=0;}}' "${_l_in}" > "${_l_out}"
+}

@@ -1,0 +1,191 @@
+#!/bin/sh
+#############################################################################################3
+#
+# logger.sh
+# Define common logger functions
+#
+# Author: ndb478
+#
+##############################################################################################
+
+GLOBAL_LOG_FILE=/dev/null
+INSTALLED_LOG_FILE=$GLOBAL_LOG_FILE
+LOG_LEVEL_INFO=INFO
+LOG_LEVEL_ERROR=ERROR
+LOG_LEVEL_DEBUG=DEBUG
+LOG_LEVEL_WARN=WARN
+FORMAT_FLAG=true
+LOGGER_SUMMARY_ENABLE=true
+
+#function: Log_setGlobalLogFile
+#change the global log file
+#usage: Log_setGlobalLogFile logFile
+function Log_setGlobalLogFile()
+{
+   unset GLOBAL_LOG_FILE
+   GLOBAL_LOG_FILE=${1:='[ERROR] Log_setGlobalLogFile: logfilename argument required!'}
+   local _l_remain_old=$2
+   if [ -f "$GLOBAL_LOG_FILE" ]; then
+      sudo rm -f $GLOBAL_LOG_FILE
+   fi
+   local dir_name=$(dirname ${GLOBAL_LOG_FILE})
+   mkdir -p ${dir_name}
+   touch $GLOBAL_LOG_FILE
+   sudo rm -f ${SQL_LOG}
+   touch ${SQL_LOG}
+}
+
+function Log_setInstalledLogFile()
+{
+   local installedLogFile=$1
+   [ -z $installedLogFile ] return 0
+   unset INSTALLED_LOG_FILE
+   INSTALLED_LOG_FILE=$installedLogFile
+}
+
+#function: Log_echo
+#print the log to console, not file
+#usage: Log_echo msg
+function Log_echo()
+{
+    local _l_msg="${1:?[ERROR] Log_write: logmsg argument required!}"
+    [ "$FORMAT_FLAG" = "true" ] && _l_msg="[`date +%Y/%m/%d\ %H:%M:%S` $PROGNAME] [$LOG_LEVEL_INFO] $_l_msg"
+    echo "$_l_msg"
+}
+
+#function: log
+#write the log to the specified log file if the log file is specifed
+#but all logs are all written in GLOBAL_LOG_FILE file
+#usage: log msg [logFile]
+function log()
+{
+    local _l_msg="${1:?[ERROR] Log_write: logmsg argument required!}"
+    _l_logFile=$2
+    Log_write "$_l_msg" "$LOG_LEVEL_INFO" "$_l_logFile"
+}
+
+function Log_empty()
+{
+    log " "
+}
+
+#function: Log_write
+#write the log to the specified log file if the log file is specifed
+#but all logs are all written in GLOBAL_LOG_FILE file
+#usage: Log_write msg level [logFile]
+function Log_write()
+{
+    local _l_msg="${1:?[ERROR] Log_write: logmsg argument required!}"
+    local _l_level="${2:?[ERROR] Log_write: log level argument required!}"
+    _l_logFile=$3
+
+    [ "$FORMAT_FLAG" = "true" ] && _l_msg="[`date +%Y/%m/%d\ %H:%M:%S` $PROGNAME] [$_l_level] $_l_msg"
+
+    [ "$_l_level" != "$LOG_LEVEL_DEBUG" ] || [ "$INSTALL_LOG_LEVEL" = "$LOG_LEVEL_DEBUG" ] && echo "$_l_msg"
+
+    if [ ! -z $_l_logFile ]; then
+      Log_toFile "$_l_msg" "$_l_logFile"
+    fi
+
+    if [ ! -z $GLOBAL_LOG_FILE ]; then
+      Log_toFile "$_l_msg" "$GLOBAL_LOG_FILE"
+    fi
+}
+
+function Log_info()
+{
+   local _l_msg="${1:?[ERROR] Log_write: logmsg argument required!}"
+   _l_logFile=$2
+   Log_write "$_l_msg" "$LOG_LEVEL_INFO" "$_l_logFile"
+}
+
+function Log_err()
+{
+   local _l_msg="${1:?[ERROR] Log_write: logmsg argument required!}"
+   _l_logFile=$2
+   Log_write "$_l_msg" "$LOG_LEVEL_ERROR" "$_l_logFile"
+}
+
+function Log_debug()
+{
+   local _l_msg="${1:?[ERROR] Log_write: logmsg argument required!}"
+   _l_logFile=$2
+   Log_write "$_l_msg" "$LOG_LEVEL_DEBUG" "$_l_logFile"
+}
+
+function Log_warn()
+{
+   local _l_msg="${1:?[ERROR] Log_write: logmsg argument required!}"
+   _l_logFile=$2
+   Log_write "$_l_msg" "$LOG_LEVEL_WARN" "$_l_logFile"
+}
+
+#function: Log_toFile
+#write the log into the specified log file
+#usage: Log_toFile msg logFile
+function Log_toFile()
+{
+    local _l_msg="${1:?[ERROR] Log_toFile: logmsg argument required!}"
+    local _l_logFile="${2:?[ERROR] Log_toFile: logfile argument required!}"
+
+    [ ! -f "$_l_logFile" ] && Log_makeLogFile "$_l_logFile"
+
+    echo $_l_msg >> $_l_logFile
+}
+
+#function: Log_makeLogFile
+#make a non-existing file
+#usage: Log_makeLogFile fileName
+function Log_makeLogFile()
+{
+   local _l_fileName="${1:?[ERROR] Log_makeLogFile: fileName argument required!}"
+   [ -f $_l_fileName ] && return 0
+
+   local _l_dir=`dirname "$_l_fileName"`
+   CM_makeDir "$_l_dir"
+
+   ! touch "$_l_fileName" >& /dev/null && ! sudo touch "$_l_fileName" && exit 1
+
+   ! chmod uo+w+r+x "$_l_fileName" >& /dev/null \
+   && ! sudo chmod uo+w+r+x "$_l_fileName" && exit 1
+   return 0
+}
+
+function Log_disableSum()
+{
+    LOGGER_SUMMARY_ENABLE=false
+}
+
+function Log_enableSum()
+{
+    LOGGER_SUMMARY_ENABLE=true
+}
+
+#function: Log_showSum
+function Log_showSum()
+{
+
+   [ "$LOGGER_SUMMARY_ENABLE" = "false" ] && return
+
+   local errors_count=`grep -c -i 'error' $GLOBAL_LOG_FILE`
+   local warns_count=`grep -c -i 'warn' $GLOBAL_LOG_FILE`
+
+   FORMAT_FLAG=false
+   log " "
+   log "Installation Summary: "
+   log "   *Errors:                     $errors_count"
+   grep -i 'error' $GLOBAL_LOG_FILE | sed 's/\[.*\.sh\] */      /' | sed 's/ *\*Errors:  *.*//' | tee -a $GLOBAL_LOG_FILE
+   log "   *Warns:                      $warns_count"
+   grep -i 'warn' $GLOBAL_LOG_FILE | sed 's/\[.*\.sh\] */      /' | sed 's/ *\*Warns:  *.*//' | tee -a $GLOBAL_LOG_FILE
+   echo
+   echo "Please check the log file '$GLOBAL_LOG_FILE' for more details."
+   FORMAT_FLAG=true
+   echo
+}
+
+function Log_isDebug()
+{
+   [ "${INSTALL_LOG_LEVEL}" = "DEBUG" ] && return 0
+   return 1
+}
+

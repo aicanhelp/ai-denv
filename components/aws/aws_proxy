@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+ssh -i /home/modongsong/aws-proxy-key.pem -N -L3128:localhost:3128 ec2-user@$1

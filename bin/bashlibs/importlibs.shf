@@ -1,0 +1,79 @@
+#!/bin/sh
+##############################################################################################
+#
+# importlibs.shf
+# if user needs to use the libs of installation, this file must be imported at first.
+#
+##############################################################################################
+
+#mark all common lib is loaded
+INIT_FLAG=false
+
+#function: init_setting
+#source the util script and configuration, set the installer directory
+#usage: init installDir [logfile]
+function init_setting()
+{
+   local l_installerDir=${1:?'init_setting: argument installerDir required!'}
+   local l_logFile=$2
+   #complete the installer directory
+   completeDir $l_installerDir INSTALLER_DIR
+
+    # Source the utility function script.
+   if [ "${INIT_FLAG}" = "false" ]; then
+      ! . $INSTALLER_DIR/bashlibs/CommonUtil.shf && exit 1
+      ! . $INSTALLER_DIR/bashlibs/Logger.shf && exit 1
+
+      # Load all of the installation environment variables are defined in install.conf.
+      . $INSTALLER_DIR/install.conf
+      [ ! -f $INSTALLER_DIR/bashlibs/default.conf ] && exit 1
+      . $INSTALLER_DIR/bashlibs/default.conf
+      # Load all of the global variables are defined in the global-vars.shf.
+      ! . $INSTALLER_DIR/bashlibs/global-vars.shf && exit 1
+
+      ! . $INSTALLER_DIR/bashlibs/ConfigUtil.shf && exit 1
+      ! . $INSTALLER_DIR/bashlibs/DBUtil.shf && exit 1
+      ! . $INSTALLER_DIR/bashlibs/BmiCommon.shf && exit 1
+      ! . $INSTALLER_DIR/bashlibs/DateUtil.shf && exit 1
+      ! . $INSTALLER_DIR/bashlibs/SetupUtil.shf && exit 1
+      ! . $INSTALLER_DIR/bashlibs/Patch.shf && exit 1
+      ! . $INSTALLER_DIR/bashlibs/Backup.shf && exit 1
+      ! . $INSTALLER_DIR/bashlibs/Upgrade.shf && exit 1
+
+      #make a temp dir for installation
+      mkdir -p $BMI_TEMP_DIR
+      #when exiting, remove the temp dir
+      trap 'sudo rm -rf $BMI_TEMP_DIR;Log_showSum;exit' 0 1 2 15
+
+      [ ! -z "$l_logFile" ] && Log_setGlobalLogFile "${BMI_LOG_DIR}/$l_logFile"
+
+      log " "
+      log "Starting TSX1000/BMI Installer .... `cat ${BMI_VERSION_FILE_NAME}`"
+      log "The working directory is $INSTALLER_DIR."
+
+      log " "
+   fi
+}
+
+function completeDir()
+{
+    local _l_dir=${1:?'function completeDir in CommonUtil.sh: dir argument required!'}
+    local _l_retVar=${2:?'function completeDir in CommonUtil.sh: return variable name argument  required!'}
+
+    local l_cur_dir
+    l_cur_dir=`pwd`
+    cd ${_l_dir}
+    _l_dir=`pwd`
+    cd ${l_cur_dir}
+    unset $_l_retVar
+    eval "$_l_retVar=$_l_dir"
+}
+
+if [ $# = 0 ]; then
+   echo "Fail to import source importlibs.shf."
+   echo "ERROR: please input the installation directory."
+   echo "Usage: source importlibs.shf installationdir [logfile]"
+   exit
+fi
+
+init_setting $*

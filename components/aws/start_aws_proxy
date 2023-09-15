@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+status="stopped"
+
+while [ "$status" != "running" ]; do
+    status=`aws ec2 --output text stop-instances --instance-ids i-05ac6b8bb1a2839f9 | grep CURRENTSTATE | awk '{print $3}'`
+    sleep 3
+done
+
+echo

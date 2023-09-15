@@ -1,0 +1,194 @@
+#!/bin/sh
+#############################################################################################3
+#
+# DateUtil.shf
+# common functions for date
+# Usage: Date_add datetime offset type returnVar
+# return date with format "YYYY-mm-dd HH:MM:SS"
+# Author: ndb478
+#
+##############################################################################################
+
+function Date_setArray()
+{
+    local datetime=${1:?'[ERROR]Date_setArray: argument datetime required!'}
+    
+    declare -i year
+    declare -i month
+    declare -i day
+    declare -i hour
+    declare -i minute
+    declare -i second
+    year=`date -d "${datetime}" +"%Y"`
+    month=`date -d "${datetime}" +"%-m"`
+    day=`date -d "${datetime}" +"%-d"`
+    hour=`date -d "${datetime}" +"%-H"`
+    minute=`date -d "${datetime}" +"%-M"`
+    second=`date -d "${datetime}" +"%-S"`
+
+    eval "dateArray=($year $month $day $hour $minute $second)"
+}
+
+function Date_addMonth()
+{
+    local offset=${1:?'[ERROR]Date_addMonth: argument offset required!'}
+
+    dateArray[1]=dateArray[1]+${offset}
+
+    while ((dateArray[1]>12))
+    do
+          dateArray[1]=dateArray[1]-12
+          dateArray[0]=dateArray[0]+1
+    done
+    while ((dateArray[1]<0))
+    do
+          dateArray[1]=dateArray[1]+12
+          dateArray[0]=dateArray[0]-1
+    done
+    if ((dateArray[1]==0))
+    then
+          dateArray[1]=12
+          dateArray[0]=dateArray[0]-1
+    fi
+}
+
+function Date_addDay()
+{
+    local offset=${1:?'[ERROR]Date_addDay: argument offset required!'}
+
+    dateArray[2]=dateArray[2]+${offset}
+
+    while ((dateArray[2]>0))
+    do
+       case ${dateArray[1]} in
+       1|3|5|7|8|10|12)
+          ((dateArray[1]<32)) && break;
+          dateArray[2]=dateArray[2]-31
+          Date_addMonth 1
+          ;;
+       4|6|9|11)
+          ((dateArray[1]<31)) && break;
+          dateArray[2]=dateArray[2]-30
+          Date_addMonth 1
+          ;;
+       2)
+          if(((dateArray[0]%4==0 && dateArray[0]%100!=0) || dateArray[0]%400==0))
+          then
+             ((dateArray[1]<30)) && break;
+             dateArray[2]=dateArray[2]-29
+             Date_addMonth 1
+          else
+             ((dateArray[1]<29)) && break;
+             dateArray[2]=dateArray[2]-28
+             Date_addMonth 1
+          fi
+       esac
+    done
+
+    while ((dateArray[2]<=0))
+    do
+       Date_addMonth -1
+       case ${dateArray[1]} in
+       1|3|5|7|8|10|12)
+          dateArray[2]=dateArray[2]+31
+          ;;
+       4|6|9|11)
+          dateArray[2]=dateArray[2]+30
+          ;;
+       2)
+          if(((dateArray[0]%4==0 && dateArray[0]%100!=0) || dateArray[0]%400==0))
+          then
+             dateArray[2]=dateArray[2]+29
+          else
+             dateArray[2]=dateArray[2]+28
+          fi
+       esac
+    done
+}
+
+function Date_addHour()
+{
+    local offset=${1:?'[ERROR]Date_addHour: argument offset required!'}
+
+    dateArray[3]=dateArray[3]+${offset}
+
+    while ((dateArray[3]>23))
+    do
+          dateArray[3]=dateArray[3]-24
+          Date_addDay 1
+    done
+    while ((dateArray[3]<0))
+    do
+          dateArray[3]=dateArray[3]+24
+          Date_addDay -1
+    done
+}
+
+function Date_addMinute()
+{
+    local offset=${1:?'[ERROR]Date_addMinute: argument offset required!'}
+   
+    dateArray[4]=dateArray[4]+${offset}
+
+    while ((dateArray[4]>59))
+    do
+          dateArray[4]=dateArray[4]-60
+          Date_addHour 1
+    done
+    while ((dateArray[4]<0))
+    do
+          dateArray[4]=dateArray[4]+60
+          Date_addHour -1
+    done
+}
+
+function Date_addSecond()
+{
+    local offset=${1:?'[ERROR]Date_addSecond: argument offset required!'}
+
+    dateArray[5]=dateArray[5]+${offset}
+
+    while ((dateArray[5]>59))
+    do
+          dateArray[5]=dateArray[5]-60
+          Date_addMinute 1
+    done
+    while ((dateArray[5]<0))
+    do
+          dateArray[5]=dateArray[5]+60
+          Date_addMinute -1
+    done
+}
+
+function Date_add()
+{
+    local datetime=${1:?'[ERROR]Date_add: argument datetime required!'}
+    local offset=${2:?'[ERROR]Date_add: argument offset required!'}
+    local dType=${3:?'[ERROR]Date_add: argument dType required!'}
+    local retVar=${4:?'[ERROR]Date_add: argument retVar required!'}
+
+    declare -i dateArray
+    Date_setArray "${datetime}"
+
+    if [ "${dType}" = "Y" ]; then
+       year=year+${offset}
+    elif [ "${dType}" = "m" ]; then
+       Date_addMonth "${offset}"
+    elif [ "${dType}" = "d" ]; then
+       Date_addDay "${offset}"
+    elif [ "${dType}" = "H" ]; then
+       Date_addHour "${offset}"
+    elif [ "${dType}" = "M" ]; then
+       Date_addMinute "${offset}"
+    elif [ "${dType}" = "S" ]; then
+       Date_addSecond "${offset}"
+    fi
+
+    local _l_date=`date -d "${dateArray[0]}-${dateArray[1]}-${dateArray[2]} ${dateArray[3]}:${dateArray[4]}:${dateArray[5]}" +"%Y-%m-%d %H:%M:%S"`
+
+    eval "${retVar}=\"${_l_date}\""
+}
+
+#test case
+#Date_add "2009-08-09" -3 m dt
+#echo $dt

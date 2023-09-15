@@ -1,0 +1,475 @@
+#!/bin/sh
+#############################################################################################3
+#
+# CommonUtil.shf
+# This script file defines many common functions
+#
+# Author: ndb478
+#
+##############################################################################################
+#function: CM_makeFile
+#make a non-existing file
+#usage: CM_makeFile fileName
+function CM_makeFile()
+{
+   local _l_fileName="${1:?[ERROR]function CM_makeFile in CommonUtil.sh: fileName argument required!}"
+   [ -f $_l_fileName ] && return 0
+
+   local _l_dir=`dirname "$_l_fileName"`
+   CM_makeDir "$_l_dir"
+
+   ! touch "$_l_fileName" >& /dev/null && ! sudo touch "$_l_fileName" && exit 1
+
+   ! chmod uo+w+r+x "$_l_fileName" >& /dev/null \
+   && ! sudo chmod uo+w+r+x "$_l_fileName" && exit 1
+   return 0
+}
+
+#function: CM_makeDir
+#make a non-existing dir
+#usage: CM_makeDir dirName
+function CM_makeDir()
+{
+   local _l_dirName="${1:?[ERROR]function CM_makeDir in CommonUtil.sh: fileName argument required!}"
+   [ -d $_l_dirName ] && return 0
+
+   local _l_sudo
+   ! mkdir -p "$_l_dirName" >& /dev/null && _l_sudo=sudo
+   ! $_l_sudo mkdir -p "$_l_dirName" && exit 1
+   ! $_l_sudo chmod -R uo+w+r+x "$_l_dirName" && exit 1
+
+   return 0
+}
+
+#function: CM_makeDir
+#make a non-existing dir
+#usage: CM_makeDir dirName
+function CM_cpFile()
+{
+   local _l_fromFile="${1:?[ERROR]CM_cpFile: argument fromFile required!}"
+   local _l_toFile="${2:?[ERROR]CM_cpFile: argument toFile required!}"
+   local _l_flag=$3
+
+   if [ ! sudo test -f ${_l_fromFile} ]; then
+       Log_err "Source file not exists."
+       return 1
+   fi
+   if [ sudo test -f $_l_toFile ] && [ -z ${_l_flag} ]; then
+       Log_err "Target file exists."
+       return 1
+   fi
+
+   if [ sudo test -r $_l_toFile ]; then
+      if test -w $_l_toFile; then
+          cp ${_l_flag} ${_l_fromFile} ${_l_toFile}
+	  else
+          sudo cp ${_l_flag} ${_l_fromFile} ${_l_toFile}
+	  fi
+      return $?
+   fi
+
+   local _l_sudo
+   ! mkdir -p "${_l_toFile}" >& /dev/null && _l_sudo=sudo
+   ! $_l_sudo mkdir -p "$_l_dirName" && exit 1
+   cp ${_l_flag} ${_l_fromFile} ${_l_toFile}
+
+   return $?
+}
+
+#function: CM_strstr
+#judge whether a string contains another string
+#usage: CM_strstr $str1 $str2
+#return: if $str1 contains $str2, then return 0, else return 1
+function CM_strstr()
+{
+   local l_str1="${1:?[ERROR]CM_strstr: argument str1 required!}"
+   local l_str2="${2:?[ERROR]CM_strstr: argument str2 required!}"
+   [ "${1#*$2*}" = "$1" ] && return 1
+   return 0
+}
+
+#function: CM_strstr
+#judge whether a string contains another string
+#usage: CM_singleStr $str1 $str2
+#return: if $str1 contains single $str2, then return 0, else return 1
+function CM_singleStr()
+{
+   local l_str1="${1:?[ERROR]CM_singleStr: argument str1 required!}"
+   local l_str2="${2:?[ERROR]CM_singleStr: argument str2 required!}"
+   return `[[ " "$l_str1" " = *" "$l_str2" "* ]]`
+}
+
+#function: CM_completeDir
+#make the dir complete
+#usage: CM_completeDir $program returnValue
+#parameter: 1 -- dir
+#           2 --  return
+function CM_completeDir()
+{
+    local _l_dir=${1:?'[ERROR]CM_completeDir: dir argument required!'}
+    local _l_retVar=${2:?'[ERROR]CM_completeDir: return variable name argument  required!'}
+
+    local l_cur_dir
+    l_cur_dir=`pwd`
+    cd ${_l_dir}
+    _l_dir=`pwd`
+    cd ${l_cur_dir}
+    unset $_l_retVar
+    eval "$_l_retVar=$_l_dir"
+}
+
+#function: CM_askYesOrNo
+#usage: CM_askYesOrNo promptMsg default
+#return: 0--yes,1--no
+function CM_askYesOrNo()
+{
+  local l_yes=yY
+  local l_msg=${1:?'[ERROR]CM_askYesOrNo: msg argument required!'}
+  local l_default=${2:?'[ERROR]CM_askYesOrNo: argument default required!'}
+  local l_accept=$3
+ 
+  if [ "$acceptDefault" != "" ]; then
+     return `[[ $l_accept = [$l_yes]* ]]`
+  fi   
+
+  while : ; do
+      echo -n $"$l_msg (Y)es/(N)o? [$l_default] "
+      read l_answer
+      l_answer=${l_answer:=$l_default}
+      return `[[ $l_answer = [$l_yes]* ]]`
+  done
+}
+
+#function: CM_isUser
+#usage: CM_isUser user
+#return 0--the current user is same with the input user
+function CM_isUser()
+{
+  local l_user=${1:?'[ERROR]CM_isUser: argument user required!'}
+  local l_myuser=$(/usr/bin/id -un)
+  return $(test $l_user = $l_myuser)
+}
+
+#function: CM_isSudo
+#usage: CM_isSudo
+#return: 0--the current user is set in /etc/sudoer
+function CM_isSudo()
+{
+    sudo touch /etc/sc-sudo-test.tmp
+    if [ $? -ne 0 ];  then
+        return 1;
+    else
+        #User looks to be in OK in sudo
+        sudo rm /etc/sc-sudo-test.tmp
+        return 0;
+    fi
+}
+
+#function: CM_isJbossRunning
+#usage: CM_isJbossRunning
+function CM_isJbossRunning()
+{
+    local l_GREP1=`ps -elf | grep jboss`
+    local l_GREP2=`echo $l_GREP1 | grep "org\.jboss\.Main"`
+    test -n "$l_GREP2"
+}
+
+#function:untarDir
+#usage: CM_untar tarfile dir
+function CM_untar()
+{
+    local l_untarFile=${1:?'[ERROR]CM_untar: argument tarfile required!'}
+    local l_untarDir=${2:?'[ERROR]CM_untar: argument dir required!'}
+
+    if [ ! -d $l_untarDir ]; then
+       mkdir -p $l_untarDir
+    fi
+    #echo "Push to the ${untarDir} directory."
+    pushd ${l_untarDir}
+
+    #echo "File to CM_untar is ${untarFile}."
+    sudo tar xpsvzf ${l_untarFile}
+
+    popd
+}
+
+#function: CM_ltrim
+#usage: input retVarName
+function CM_ltrim()
+{
+    local _l_input=${1:?'[ERROR]CM_ltrim: argument required!'}
+    local _l_retVar=${2:?'[ERROR]CM_ltrim: return variable name argument  required!'}
+
+    _l_input="`echo ${_l_input} | sed 's/ *//'`"
+
+     eval "${_l_retVar}=\"${_l_input}\""
+}
+
+#function: CM_getLocalIp
+#usage: CM_getLocalIp retVarName
+function CM_getLocalIp()
+{
+    local l_retVar=${1:?'[ERROR]CM_getLocalIp: argument return variable name required!'}
+    local l_local_ip
+    l_local_ip=`/sbin/ifconfig -a eth0 | grep inet | sed -e 's/^.*addr://' -e 's/ .*$//'`
+    eval "$l_retVar='$l_local_ip'"
+}
+
+#function: CM_getLocalIp
+#usage: CM_getLocalIp retVarName
+function CM_isLocalIp()
+{
+    local l_ip=${1:?'[ERROR]CM_isLocalIp: argument ip value required!'}
+    local ipCount
+    ipCount=`/sbin/ifconfig | grep -c '^eth. '`
+
+    [ "${l_ip}" = "127.0.0.1" ] && return 0
+
+    local i
+    let i=0
+    while ((i<ipCount))
+    do
+       l_local_ip=`/sbin/ifconfig -a eth${i} | grep inet | sed -e 's/^.*addr://' -e 's/ .*$//'`
+       [ "${l_local_ip}" = "${l_ip}" ] && return 0
+       let i=i+1
+    done
+
+    return 1
+}
+
+#function: CM_isValidIp
+#judge a ip string
+#usage: CM_isValidIp inputStr
+function CM_isValidIp()
+{
+   local _l_input_ip_str=${1:?'[ERROR]CM_isValidIp: argument input ip str required!'}
+   local _ip_pattern="\<\([0-9]\|[1-9][0-9]\|1[0-9][0-9]\|2[0-4][0-9]\|25[0-5]\)"
+   _ip_pattern="$_ip_pattern\.\([0-9]\|[1-9][0-9]\|1[0-9][0-9]\|2[0-4][0-9]\|25[0-5]\)"
+   _ip_pattern="$_ip_pattern\.\([0-9]\|[1-9][0-9]\|1[0-9][0-9]\|2[0-4][0-9]\|25[0-5]\)"
+   _ip_pattern="$_ip_pattern\.\([0-9]\|[1-9][0-9]\|1[0-9][0-9]\|2[0-4][0-9]\|25[0-5]\)\>"
+   local _l_result
+   _l_result=`eval "echo '$_l_input_ip_str' | grep '$_ip_pattern'"`
+   [ ! -z "`echo $_l_result|sed 's/ //g'`" ] && return 0
+   return 1
+}
+
+
+#function:CM_isLocalAddress
+#usage: CM_isLocalAddress addressStr
+function CM_isLocalAddress()
+{
+   local _l_address=${1:?'[ERROR]CM_isLocalAddress: argument address string required!'}
+
+   ! gethostip "${_l_address}" > /dev/null 2>&1 && return 1
+   [ "$_l_address" = "localhost" ] && return 0
+   [ "$_l_address" = "`hostname`" ] && return 0
+
+   local _l_addr_ip=`gethostip -d "${_l_address}"`
+   CM_isLocalIp "${_l_addr_ip}" && return 0
+   return 1
+}
+
+#function: CM_parseVersionInfo
+# return a version number string
+# for example: 'emerald_int.18 3.9.0' will be transfered to 3.9.0.18
+#              'main.18 3.9.0' will be transfered to 3.9.0.18
+#              'Release 3.9.0.18 FCS' will be transfered to 3.9.0.18
+function CM_parseVersionInfo()
+{
+   local _l_version_str="${1:?'[ERROR]CM_parseVersionInfo: argument version info required!'}"
+   local _l_retVar=${2:?'[ERROR]CM_parseVersionInfo: argument return var required!'}
+   local retArray
+   retArray=(${_l_version_str})
+
+   if CM_strstr "$_l_version_str" "main."; then
+       retArray[1]="${retArray[1]}`echo ${retArray[0]} | sed 's/main//'`"
+   elif CM_strstr "$_l_version_str" "_int."; then
+       retArray[1]="${retArray[1]}`echo ${retArray[0]} | sed 's/.*_int//'`"
+   fi
+
+   eval "${_l_retVar}=${retArray[1]}"
+}
+
+function CM_compareVersion0()
+{
+    local _l_ver_str1=${1:?'[ERROR]CM_compareVersion1: argument version 1 required!'}
+    local _l_ver_str2=${2:?'[ERROR]CM_compareVersion1: argument version 2 required!'}
+
+    local _l_ver1
+    local _l_ver2
+    CM_parseVersionInfo "$_l_ver_str1" "_l_ver1"
+    CM_parseVersionInfo "$_l_ver_str2" "_l_ver2"
+
+    CM_compareVersion "${_l_ver1}" "${_l_ver2}"
+
+    return $?
+}
+
+#function: CM_compareVersion
+#This function compares the version through three parts parsed by function CM_parseVersionInfo
+function CM_compareVersion()
+{
+    local _l_ver_str1=${1:?'[ERROR]CM_compareVersion: argument version 1 required!'}
+    local _l_ver_str2=${2:?'[ERROR]CM_compareVersion: argument version 2 required!'}
+
+    (($(expr "${_l_ver_str1}" '=' "${_l_ver_str2}")==1)) && return 0
+
+    local _l_ver1_array=(`echo $_l_ver_str1 | tr '.' ' '`)
+    local _l_ver2_array=(`echo $_l_ver_str2 | tr '.' ' '`)
+    if (($(expr "${_l_ver_str1}" '<' "${_l_ver_str2}")==1)); then
+        (($(expr "${_l_ver1_array[0]}" '<' "${_l_ver2_array[0]}")==1)) && return 1
+        (($(expr "${_l_ver1_array[1]}" '<' "${_l_ver2_array[1]}")==1)) && return 2
+        (($(expr "${_l_ver1_array[2]}" '<' "${_l_ver2_array[2]}")==1)) && return 3
+        (($(expr "${_l_ver1_array[3]}" '<' "${_l_ver2_array[3]}")==1)) && return 4
+        (($(expr "${_l_ver1_array[4]}" '<' "${_l_ver2_array[4]}")==1)) && return 5
+    else
+        (($(expr "${_l_ver1_array[0]}" '>' "${_l_ver2_array[0]}")==1)) && return 11
+        (($(expr "${_l_ver1_array[1]}" '>' "${_l_ver2_array[1]}")==1)) && return 12
+        (($(expr "${_l_ver1_array[2]}" '>' "${_l_ver2_array[2]}")==1)) && return 13
+        (($(expr "${_l_ver1_array[3]}" '>' "${_l_ver2_array[3]}")==1)) && return 14
+        (($(expr "${_l_ver1_array[4]}" '>' "${_l_ver2_array[4]}")==1)) && return 15
+    fi
+}
+
+#function: CM_deleteLinuxService
+function CM_deleteLinuxService()
+{
+    local _l_name=${1:?'[ERROR]deleteService: argument service name required!'}
+    OS=`uname | tr "[:lower:]" "[:upper:]"`
+    export OS
+
+    if [ "$OS" = "LINUX" ]; then
+       local _l_count=`sudo /sbin/chkconfig --list | egrep -c ${_l_name}`
+       if [ $_l_count != 0 ]; then
+          log "Remove the service ${_l_name}..."
+          sudo /sbin/chkconfig --del ${_l_name}
+       fi
+    fi
+}
+
+function CM_copyArray()
+{
+    local l_input_arr=$1
+    local l_array_ret=$2
+
+    i=0
+    eval "count=\${#$l_input_arr[*]}"
+    while (( i < count ))
+    do
+      eval "$l_array_ret[$i]=\${$l_input_arr[$i]}"
+      let i=i+1
+    done
+}
+
+function CM_sortStringWords()
+{
+    local l_input_arr=$1
+    local l_array_ret=$2
+    
+    local _l_tmp
+    _l_tmp=`echo $1 | tr " " "\n" | sort -n`
+    
+    eval "$l_array_ret='$_l_tmp'"
+}
+
+function CM_mergeArray()
+{
+    local retVar=${1:?'[ERROR]CM_mergeArray: return var name required!'}
+    local input1=$2
+    local input2=$3
+   
+    [ "$input1" = "" ] && eval "$retVar=\"${input2}\"" && return 0
+    [ "$input2" = "" ] && eval "$retVar=\"${input1}\"" && return 0
+
+    for word in $input2
+    do
+       ! CM_singleStr "${input1}" "$word" && input1="${input1} ${word}"
+    done
+
+    eval "$retVar=\"${input1}\""
+}
+
+# input1-input2
+function CM_diff()
+{
+    local retVar=${1:?'[ERROR]CM_diff: return var name required!'}
+    local input1=$2
+    local input2=$3
+    
+    [ "$input1" = "" ] && eval "$retVar=" && return 0
+    [ "$input2" = "" ] && eval "$retVar=\"${input1}\"" && return 0
+    
+    for word in $input2
+    do
+       local cmd="echo ${input1} | sed 's/${word}//g'"
+       input1=`eval "$cmd"`
+    done
+
+    eval "$retVar=\"${input1}\""
+}
+
+# input1 && input2
+function CM_same()
+{
+    local retVar=${1:?'[ERROR]CM_same: return var name required!'}
+    local input1=$2
+    local input2=$3
+
+    [ "$input1" = "" ] && eval "$retVar=" && return 0
+    [ "$input2" = "" ] && eval "$retVar=" && return 0
+
+    local l_retVal
+    for word in $input1
+    do
+       CM_singleStr "$input2" "$word" && l_retVal="${l_retVal} $word"
+    done
+
+    eval "$retVar=\"${l_retVal}\""
+}
+
+function CM_distinct()
+{
+    local retVar=${1:?'[ERROR]CM_distinct: return var name required!'}
+    local input=$2
+
+    local l_retVal
+    if [ "$input" != "" ]; then
+        for word in $input
+        do
+            if [ "${l_retVal}" = "" ] || ! CM_singleStr "${l_retVal}" "$word"; then
+                l_retVal="${l_retVal} $word"
+            fi
+        done
+    fi
+
+    eval "$retVar=\"${l_retVal}\""
+}
+
+function CM_isFileInTar()
+{
+    local _l_tar_file=${1:?'[ERROR]CM_isFileInTar: argument tarfile required!'}
+    local _l_file=${2:?'[ERROR]CM_isFileInTar: argument file name required!'}
+
+    local _l_count=`tar tvf "${_l_tar_file}" | grep -c -i "${_l_file}"`
+    [ "$_l_count" = "0" ] && return 1
+    return 0
+}
+
+function CM_fileExists()
+{
+    local fileName=${1:?'[ERROR]CM_fileExists: file name required!'}
+    
+    sudo sh -c "
+      function exists()
+      {
+         local file
+    		for file in $fileName
+    		do
+            [ -e \$file ] && return 0
+    		done
+    		return 1
+    	}
+    	exists
+    "
+    return $?
+}

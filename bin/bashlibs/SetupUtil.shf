@@ -1,0 +1,1300 @@
+#!/bin/sh
+function Setup_install()
+{
+    local packages=${1:?'[ERROR]Setup_install: product name list required!'}
+    local mode=$2
+
+    local result
+    local package
+    for package in ${packages}
+    do
+        local packageSuffix=`echo ${package} | sed 's/\//_/g'`
+        local setup_file=${INSTALLER_DIR}/${package}/setup.shf
+        if [ -f ${setup_file} ]; then
+            source ${setup_file}
+            Setup_requireFunc "${packageSuffix}_installCOM"
+
+            if [ "${mode}" != "db" ] && Setup_isInstalled "$package"; then
+                log "${package} has been installed."
+            else
+                local l_result
+                Log_empty
+                log "Begin to install ${package} ..."
+                if [ "${mode}" != "com" ] && Setup_isUseDB "${package}"; then
+                    log "Try to install Database Objects of ${package} ..."
+                    BC_copyDBScripts "${INSTALLER_DIR}/${package}/dbscripts" "${package}"
+                    if Setup_funcDefined "${packageSuffix}_installDB"; then
+                       ${packageSuffix}_installDB
+                       l_result=$? && ((result==0)) && result=${l_result}
+                    else
+                       Setup_installDB "${package}"
+                       l_result=$? && ((result==0)) && result=${l_result}
+                    fi
+                    if Setup_funcDefined "${packageSuffix}_postInstallDB"; then
+                    	 ${packageSuffix}_postInstallDB 
+                    fi
+                    
+					BC_saveInstalledProductsToDB "`echo ${package} | sed 's/.*\///g'`"
+                fi
+
+                if [ "${mode}" != "db" ]; then
+                    log "Installing components of ${package} ..."
+                    Setup_installProductTools "$package"
+                    ${packageSuffix}_installCOM
+                    l_result=$? && ((result==0)) && result=${l_result}
+                fi
+
+                Log_empty
+                if ((l_result==0)); then
+                   [ "${mode}" != "db" ] && BC_deployFile "${setup_file}" "${BMI_HOME}/conf/${package}"
+                fi
+
+                if ((l_result==0)); then
+                    log "The installation of ${package} is completed."
+                else
+                    Log_err "${package} was installed incompletely."
+                fi
+                Log_empty
+            fi
+        else
+            Log_warn "Setup_install: Setup File not Found ${setup_file}"
+            result=1
+        fi
+    done
+
+    return ${result}
+}
+
+function Setup_checkCoinstall()
+{
+     local products=${1:?'[ERROR]Setup_checkCoinstall: products list required!'}
+
+     ! Setup_containJbossApp "${products}" && return 0
+     
+     local retVal=0
+     local product
+     local otherProducts
+     local diffProducts
+     local coinstall
+     for product in $products
+     do
+         ! Setup_containJbossApp "${product}" && continue
+         CM_diff "otherProducts" "${products}" "${product}"
+         local setup_file=${INSTALLER_DIR}/products/${product}/setup.shf
+         [ ! -e ${setup_file} ] && ! Setup_isInstalled "${product}" && continue
+         [ ! -e ${setup_file} ] && setup_file=${BMI_HOME}/conf/${package}/setup.shf
+         eval "coinstall=\"\${products_${product}_coinstall}\""
+         CM_diff "diffProducts" "${otherProducts}" "${coinstall}"
+         diffProducts=($diffProducts)
+         ((${#diffProducts[*]}==0)) && return 0
+         retVal=1
+     done
+     return $retVal
+}
+
+function Setup_isTool()
+{
+    local package=${1:?'[ERROR]Setup_isTool: product name required!'}
+
+    CM_strstr "${package}" "tools/" && return 0
+    return 1
+}
+
+function Setup_installDB()
+{
+    local package=${1:?'[ERROR]Setup_installDB: product name required!'}
+    local result
+    local l_result
+
+    Setup_createDBUser "${package}"
+    l_result=$? && ((result==0)) && result=${l_result}
+    if [ -f ${INSTALLER_DIR}/${package}/dbscripts/${DB_DESC[0]}/install.sql ]; then
+        BC_runSqlFile "DB_DESC" ${package}/dbscripts/${DB_DESC[0]}/install.sql
+        l_result=$? && ((result==0)) && result=${l_result}
+    else
+        log "No Database Objects Installed for ${package}"
+    fi
+
+    return $result
+}
+
+function Setup_runDBFile()
+{
+    local package=${1:?'[ERROR]Setup_runDBFile: product name required!'}
+    local dbFile=${2:?'[ERROR]Setup_runDBFile: db schema file required!'}
+
+    BC_runSqlFile "DB_DESC" ${package}/dbscripts/${DB_DESC[0]}/${dbFile}
+    return $?
+}
+
+function Setup_runUninstallDBFile()
+{
+    local package=${1:?'[ERROR]Setup_runUninstallDBFile: product name required!'}
+    local dbFile=${2:?'[ERROR]Setup_runUninstallDBFile: db schema file required!'}
+
+    local tmp_db_desc
+    DB_copyDesc DB_ADMIN_DESC tmp_db_desc
+    local tmp_addr
+    local tmp_type
+    local tmp_instance
+    BC_getDBAddr "tmp_type" "tmp_addr" "tmp_instance"
+    tmp_db_desc[0]=${tmp_type}
+    tmp_db_desc[1]=${tmp_addr}
+    [ "${tmp_type}" = "mysql" ] && tmp_instance="mysql"
+    tmp_db_desc[4]=${tmp_instance}
+
+    BC_runSqlFile "tmp_db_desc" ${package}/dbscripts/${tmp_db_desc[0]}/${dbFile}
+    return $?
+}
+
+function Setup_createDBUser()
+{
+    local package=${1:?'[ERROR]Setup_installDB: product name required!'}
+    local result
+    local l_result
+    if [ -f ${INSTALLER_DIR}/${package}/dbscripts/${DB_DESC[0]}/createUser.sql ]; then
+        BC_runSqlFile "DB_ADMIN_DESC" ${package}/dbscripts/${DB_DESC[0]}/createUser.sql
+        l_result=$? && ((result==0)) && result=${l_result}
+    fi
+
+    return $result
+}
+
+function Setup_installTools()
+{
+    local packages=${1:?'[ERROR]Setup_installTools: product name list required!'}
+    local mode=$2
+
+    local l_packages
+    local package
+    for package in ${packages}
+    do
+        l_packages="${l_packages} tools/${package}"
+    done
+
+    Setup_install "${l_packages}" "${mode}"
+
+    return $?
+}
+
+function Setup_installProducts()
+{
+    local packages=${1:?'[ERROR]Setup_installProducts: product name list required!'}
+    local mode=$2
+
+    # set bmi in the first position, it is IMPORTANT!!!
+    if CM_singleStr "${packages}" "bmi"; then
+        packages="bmi `echo ${packages} | sed 's/bmi//'`"
+    fi
+    if CM_singleStr "${packages}" "etl"; then
+        packages="`echo ${packages} | sed 's/etl//'` etl"
+    fi
+
+    local l_packages
+    local package
+    for package in ${packages}
+    do
+        l_packages="${l_packages} products/${package}"
+    done
+		
+	if [ "${mode}" != "db" ]; then	
+		Setup_installToolScripts "${INSTALLER_TOOLS_DIR}/scripts"
+    	BC_deployToCrond "${INSTALLER_TOOLS_DIR}/scripts/cron/bmicroncommon"
+	fi	
+	Log_empty
+		
+    log "Try to install products ${mode}: ${l_packages} ..."
+    Setup_install "${l_packages}" "${mode}"
+    
+    return $?
+}
+
+function Setup_uninstall()
+{
+    local packages=${1:?'[ERROR]Setup_uninstall: product name list required!'}
+    local mode=$2
+
+    local result
+    local package
+    for package in ${packages}
+    do
+        local packageSuffix=`echo ${package} | sed 's/\//_/g'`
+
+        local setup_file=${INSTALLER_DIR}/${package}/setup.shf
+        [ ! -e ${setup_file} ] && Setup_isInstalled "${package}" && setup_file=${BMI_HOME}/conf/${package}/setup.shf
+        if [ -f ${setup_file} ]; then
+            source ${setup_file}
+            Log_empty
+            log "Uninstalling ${package} ..."
+            if [ "${mode}" != "com" ] && Setup_prepareUninstallDB "${package}"; then
+                  if Setup_funcDefined "${packageSuffix}_uninstallDB"; then
+                      ${packageSuffix}_uninstallDB
+                      l_result=$? && ((result==0)) && result=${l_result}
+                  else
+                      Setup_uninstallDB "${package}"
+                      l_result=$? && ((result==0)) && result=${l_result}
+                  fi
+            fi
+
+            if [ "${mode}" != "db" ]; then
+                  eval "local l_installed_file=\"\${${packageSuffix}_installed_file}\""
+                  [ ! -z ${l_installed_file} ] && BC_undeployFile ${l_installed_file}
+                  if Setup_funcDefined "${packageSuffix}_uninstallCOM"; then
+                      ${packageSuffix}_uninstallCOM
+                      l_result=$? && ((result==0)) && result=${l_result}
+                  fi
+            fi
+
+            if ((l_result==0)); then
+               log "${package} was removed."
+            else
+               Log_err "${package} was removed incompletely."
+            fi
+            Log_empty
+        else
+            Log_warn "Setup_uninstall: Setup File not Found for ${package}."
+            result=1
+        fi
+    done
+    return $result
+}
+
+function Setup_forceUninstallDB()
+{
+	local products=${1:?'[ERROR]Setup_forceUninstallDB: product name list required!'}
+
+    local l_result
+	local result
+    local product
+    
+    DB_copyDesc "DB_ADMIN_DESC" "DB_UNINST_DESC"
+    
+    for product in ${products}
+    do
+        local setup_file=${INSTALLER_DIR}/products/${product}/setup.shf
+        if [ -f ${setup_file} ]; then
+            source ${setup_file}
+            Log_empty
+            log "Uninstalling ${product} ..."
+			if Setup_funcDefined "products_${product}_uninstallDB"; then
+				products_${product}_uninstallDB
+				l_result=$? && ((result==0)) && result=${l_result}
+			else
+				Setup_uninstallDB "products/${product}"
+				l_result=$? && ((result==0)) && result=${l_result}
+			fi
+		else
+		   Log_warn "Setup_forceUninstallDB: Setup File not Found for products/${product}"
+		   result=1
+		fi
+    done
+    return $result
+}
+
+function Setup_prepareUninstallDB()
+{
+	local package=${1:?'[ERROR]Setup_prepareUninstallDB: product name required!'}
+
+    ! Setup_isUseDB ${package} && return 1
+    
+    log "Uninstalling Database Objects of ${package} ..."
+
+    local tmp_addr
+    local tmp_type
+    local tmp_instance
+    BC_getDBAddr "tmp_type" "tmp_addr" "tmp_instance"
+    [ "${tmp_type}" = "mysql" ] && tmp_instance="mysql"
+
+	[ "${tmp_type}" = "" ] && DB_copyDesc "DB_ADMIN_DESC" "DB_UNINST_DESC"
+
+    if [ "${DB_UNINST_DESC[0]}" != "${tmp_type}" ] || [ "${DB_UNINST_DESC[1]}" != "${tmp_addr}" ]; then
+
+        [ "${tmp_type}" = "mysql" ] && DB_copyDesc "DB_MYSQL_ADMIN_DESC" "DB_UNINST_DESC"
+        [ "${tmp_type}" = "oracle" ] && DB_copyDesc "DB_ORACLE_ADMIN_DESC" "DB_UNINST_DESC"
+    	DB_UNINST_DESC[1]=${tmp_addr}
+    	DB_UNINST_DESC[4]=${tmp_instance}
+        DB_UNINST_DESC[3]=${DB_ADMIN_DESC[3]}
+        DB_UNINST_DESC[6]=${DB_ADMIN_DESC[6]}
+
+    	local l_input_pwd
+    	echo
+		log "Installer will deinstall the '${DB_UNINST_DESC[0]}' database objects at '${DB_UNINST_DESC[1]}',"
+		echo
+		echo "The password of Database Administrator user '${DB_UNINST_DESC[2]}' is required for deinstallation."
+		read -p "Please input the password of DB User '${DB_UNINST_DESC[2]}':" -ers l_input_pwd
+		echo
+		DB_UNINST_DESC[3]=${l_input_pwd}
+
+		if ! CM_isLocalAddress ${DB_UNINST_DESC[1]}; then
+		    echo
+			echo "The '${DB_UNINST_DESC[1]}' is a remote mathine. The OS user must be set for deinstallation."
+			echo "The password of OS user '${DB_UNINST_DESC[5]}' is required for deinstallation."
+			read -p "Please input the password of OS User '${DB_UNINST_DESC[5]}':" -ers l_input_pwd
+			echo
+			DB_UNINST_DESC[6]=${l_input_pwd}
+		fi
+    fi
+
+    log "Database properties for uninstall: type--${tmp_type}, address--${tmp_addr}, instance--${tmp_instance}"
+}
+
+function Setup_uninstallDB()
+{
+    local package=${1:?'[ERROR]Setup_uninstallDB: product name required!'}
+    local result
+    local l_result
+
+    ! Setup_isUseDB ${package} return 0
+    
+    BC_copyDBScripts ${INSTALLER_DIR}/${package}/dbscripts ${package} "DB_UNINST_DESC"
+  
+    if [ -f ${INSTALLER_DIR}/${package}/dbscripts/${DB_UNINST_DESC[0]}/uninstall.sql ]; then
+        BC_runSqlFile "DB_UNINST_DESC" ${package}/dbscripts/${DB_UNINST_DESC[0]}/uninstall.sql
+        l_result=$? && ((result==0)) && result=${l_result}
+    fi
+    return $result
+}
+
+function Setup_uninstallTools()
+{
+    local packages=${1:?'[ERROR]Setup_uninstallTools: product name list required!'}
+    local mode=$2
+
+    local l_packages
+    local package
+    for package in ${packages}
+    do
+        l_packages="${l_packages} tools/${package}"
+    done
+
+    Setup_uninstall "${l_packages}" "${mode}"
+
+    return $?
+}
+
+function Setup_uninstallProducts()
+{
+    local packages=${1:?'[ERROR]Setup_uninstallProducts: product name list required!'}
+    local mode=$2
+
+    local l_packages
+    local package
+    for package in ${packages}
+    do
+        l_packages="${l_packages} products/${package}"
+    done
+
+    Setup_uninstall "${l_packages}" "${mode}"
+
+    local remainInstalled
+    Setup_findAllInstalled "remainInstalled"
+
+    if [ "${remainInstalled}" = "" ]; then
+    	 #nothing installed, remove jboss
+       Setup_uninstallTools "jboss"
+    fi
+
+    if [ "${remainInstalled}" = "" ] || [ "${remainInstalled}" = "sc" ]; then
+       BC_undeployFolder "${BMI_CONF_DIR}"
+       BC_undeployFolder "${BMI_PRODUCTS_DIR}"
+       BC_undeployFolder "${BMI_BIN_DIR}"
+       BC_undeployFolder "${BMI_TOOLS_DIR}"
+       BC_undeployFolder "${BMI_HOME}/core"
+       BC_undeployFolder "${BMI_HOME}/components"
+    fi
+	
+		BC_undeployFile /etc/cron.d/bmicroncommon
+		
+    return $?
+}
+
+function Setup_uninstallAll()
+{
+    local mode=$1
+    local allInstalled
+
+    if [ "${mode}" != "db" ]; then
+        Setup_findAllInstalled "allInstalled"
+    else
+        allInstalled="bmi"
+	fi
+
+    Setup_uninstallProducts "${allInstalled}" "${mode}"
+}
+
+function Setup_addComForUpgrade()
+{
+	  CM_mergeArray "UPGRADE_ADD_COMS" "${UPGRADE_ADD_COMS}" "$1"
+}
+
+function Setup_reInstallAll()
+{
+    local mode=$1
+    local allInstalled
+    Setup_findAllInstalled "allInstalled"
+	
+	  CM_mergeArray "allInstalled" "${allInstalled}" "${UPGRADE_ADD_COMS}"
+	  
+		if [ "${mode}" != "com" ]; then
+        Log_empty
+        log "Reinstall database of ${allInstalled}... "
+        log "Uninstall old ..."
+        Setup_uninstallProducts "${allInstalled}" "db"
+        log "Installing new ..."
+        Setup_installProducts "${allInstalled}" "db"
+    fi
+	
+    if [ "${mode}" != "db" ]; then
+        Log_empty
+        log "Reinstall components of ${allInstalled}... "
+        log "Uninstall old ..."
+        Setup_uninstallProducts "${allInstalled}" "com"
+
+        log "Installing new ..."
+        Setup_checkDependencie "${allInstalled}"
+        Setup_installProducts "${allInstalled}" "com"
+    fi
+
+    BC_saveBmiProperties
+}
+
+function Setup_backup()
+{
+    local packages=${1:?'[ERROR]Setup_backup: product name required!'}
+    local retVar=${2:?'[ERROR]Setup_backup: retVar name required!'}
+    local mode=$3
+
+    local result
+    local package
+    local backup_files
+    for package in ${packages}
+    do
+        local packageSuffix=`echo ${package} | sed 's/\//_/g'`
+        local setup_file=${INSTALLER_DIR}/${package}/setup.shf
+        [ ! -e ${setup_file} ] && Setup_isInstalled "${package}" && setup_file=${BMI_HOME}/conf/${package}/setup.shf
+        if [ -f ${setup_file} ]; then
+            source ${setup_file}
+            if Setup_isInstalled "${package}" && Setup_funcDefined "${packageSuffix}_backup"; then
+               log "Begin to get the information of ${package} for backup ..."
+               ${packageSuffix}_backup
+               eval "backup_files=\"${backup_files} \${${packageSuffix}_backup_files}\""
+            fi
+        else
+            Log_warn "Setup_backup: Setup File not Found: ${setup_file}"
+            result=1
+        fi
+    done
+    
+    eval "${retVar}=\"${backup_files}\""
+    return $result
+}
+
+function Setup_backupTools()
+{
+    local packages=${1:?'[ERROR]Setup_backupTools: product name list required!'}
+    local retVar=${2:?'[ERROR]Setup_backupTools: retVar name required!'}
+    local mode=$3
+
+    local l_packages
+    local package
+    for package in ${packages}
+    do
+        l_packages="${l_packages} tools/${package}"
+    done
+    Setup_backup "${l_packages}" "${retVar}" "${mode}"
+    return $?
+}
+
+function Setup_backupProducts()
+{
+    local packages=${1:?'[ERROR]Setup_backupProducts: product name list required!'}
+    local retVar=${2:?'[ERROR]Setup_backupProducts: retVar name required!'}
+    local mode=$3
+
+    local l_packages
+    local package
+    for package in ${packages}
+    do
+        l_packages="${l_packages} products/${package}"
+    done
+    Setup_backup "${l_packages}" "${retVar}" "${mode}"
+	 eval "Log_debug 'Backup files: \$${backup_files}'"
+
+    return $?
+}
+
+function Setup_restore()
+{
+    local packages=${1:?'[ERROR]Setup_restore: product name required!'}
+    local mode=$2
+
+    local result
+    local package
+    for package in ${packages}
+    do
+        local packageSuffix=`echo ${package} | sed 's/\//_/g'`
+        local setup_file=${INSTALLER_DIR}/${package}/setup.shf
+        if [ -f ${setup_file} ]; then
+            source ${setup_file}
+
+            log "Restore '$package' $mode ... "
+            if [ "${mode}" != "com" ]; then
+                  Setup_createDBUser "${package}"
+                  l_result=$? && ((result==0)) && result=${l_result}
+                  if Setup_funcDefined "${packageSuffix}_restoreDB"; then
+                     ${packageSuffix}_restoreDB
+                     l_result=$? && ((result==0)) && result=${l_result}
+                  fi
+            fi
+
+            if [ "${mode}" != "db" ]; then
+                  if Setup_funcDefined "${packageSuffix}_restoreCOM"; then
+                      ${packageSuffix}_restoreCOM
+                      l_result=$? && ((result==0)) && result=${l_result}
+                  fi
+            fi
+
+            if ((l_result==0)); then
+               log "${package} $mode was removed."
+            else
+               Log_err "${package} $mode was removed incompletely."
+            fi
+        else
+            Log_warn "Setup_restore: Setup File not Found: ${setup_file}"
+            result=1
+        fi
+    done
+    return $result
+}
+
+function Setup_restoreTools()
+{
+    local packages=${1:?'[ERROR]Setup_restoreTools: product name list required!'}
+    local mode=$2
+
+    local l_packages
+    local package
+    for package in ${packages}
+    do
+        l_packages="${l_packages} tools/${package}"
+    done
+    Setup_restore "${l_packages}" "${mode}"
+    return $?
+}
+
+function Setup_restoreProducts()
+{
+    local packages=${1:?'[ERROR]Setup_restoreProducts: product name list required!'}
+    local mode=$2
+
+    local l_packages
+    for package in ${packages}
+    do
+        l_packages="${l_packages} products/${package}"
+    done
+    Setup_restore "${l_packages}" "${mode}"
+    return $?
+}
+
+function Setup_isInstalled()
+{
+    local packages=${1:?'[ERROR]Setup_isInstalled: product name required!'}
+    local type=$2
+
+    local package
+    for package in ${packages}
+    do
+        [ "$type" != "" ] && package="$type/$package"
+        if [ "${package}" = "products/sc" ]; then
+           BC_isSCInstalled;
+           return $?
+        fi
+
+        local setup_file=${INSTALLER_DIR}/${package}/setup.shf
+
+        [ ! -e ${setup_file} ] && setup_file=${BMI_HOME}/conf/${package}/setup.shf
+
+        local packageSuffix=`echo ${package} | sed 's/\//_/g'`
+
+        if [ -f ${setup_file} ]; then
+            source ${setup_file}
+            if Setup_funcDefined "${packageSuffix}_isInstalled"; then
+                ${packageSuffix}_isInstalled && return 0
+            else
+               local installedFiles
+               eval "installedFiles=\"\${${packageSuffix}_installed_file}\""
+               local installedFile
+               for installedFile in ${installedFiles}
+               do
+                   [ -e "$installedFile" ] && return 0
+               done
+            fi
+        else
+            Log_warn "Setup_isInstalled: Setup File not Found for ${package}"
+            return 1
+        fi
+    done
+    return 1
+}
+
+function Setup_isProductsInstalled()
+{
+    Setup_isInstalled "$*" "products"
+    return $?
+}
+
+function Setup_isToolsInstalled()
+{
+    Setup_isInstalled "$*" "tools"
+    return $?
+}
+
+function Setup_funcDefined()
+{
+    local func_name=${1:?'[ERROR]Setup_funcDefined: function name is required!'}
+
+    local l_found=`declare -F | grep "${func_name}"`
+    [ "${l_found}" = "" ] && return 1
+
+    return 0
+}
+
+function Setup_requireFunc()
+{
+    local func_name=${1:?'[ERROR]Setup_requireFunc: function name is required!'}
+    if ! Setup_funcDefined "${func_name}"; then
+       Log_err "function ${func_name} is not defined."
+       exit 1
+    fi
+}
+
+function Setup_installToolScripts()
+{
+    local tools_path=${1:?'[ERROR]Setup_installToolScripts: tools script dir required!'}
+
+    log "Installing tools scripts in ${tools_path} ..."
+    [ ! -d ${tools_path} ] && return 0
+    local _file
+    for _file in ${tools_path}/*
+    do
+       BC_deployFile ${_file} ${BMI_TOOLS_DIR}
+    done
+    log "Tools scripts in ${tools_path} was installed."
+    Log_empty
+}
+
+function Setup_getProducts()
+{
+    local _l_retVar=${1:?'[ERROR]Setup_getProducts: return variable name argument  required!'}
+    local _l_dir=""
+
+    local _dir
+    [ ! -d ${INSTALLER_DIR}/products ] && return 0
+    for _dir in ${INSTALLER_DIR}/products/*
+    do
+       [ -d ${_dir} ] && _l_dir="${_l_dir} $(basename $_dir)"
+    done
+
+    if [ "${_l_dir}" != "" ] && CM_singleStr "${_l_dir}" "bmi"; then
+        _l_dir="bmi `echo ${_l_dir} | sed 's/bmi//'`"
+    fi
+
+    eval "$_l_retVar=\"$_l_dir\""
+}
+
+function Setup_getTools()
+{
+    local _l_retVar=${1:?'[ERROR]Setup_getTools: return variable name argument  required!'}
+    local _l_dir=""
+
+    local _dir
+    [ ! -d ${INSTALLER_DIR}/tools ] && return 0
+    for _dir in ${INSTALLER_DIR}/tools/*
+    do
+       if [ -d ${_dir} ] && [ "$(basename $_dir)" != "scripts" ]; then
+          _l_dir="${_l_dir} $(basename $_dir)"
+       fi
+    done
+
+    eval  "$_l_retVar=\"$_l_dir\""
+}
+
+function Setup_isJbossApp()
+{
+    local package=${1:?'[ERROR]Setup_isJbossApp: product name required!'}
+    local type=$2
+
+    [ "$type" != "" ] && package="$type/$package"
+
+    [ "${package}" = "products/sc" ] && return 0
+
+    local packageSuffix=`echo ${package} | sed 's/\//_/g'`
+
+    local setup_file=${INSTALLER_DIR}/${package}/setup.shf
+
+    [ ! -e "${setup_file}" ] && setup_file=${BMI_HOME}/conf/${package}/setup.shf
+
+    if [ -f ${setup_file} ]; then
+       source ${setup_file}
+       l_cmd="\$${packageSuffix}_isJbossApp"
+       eval "l_isJbossApp=$l_cmd"
+       [ "${l_isJbossApp}" = "$TRUE" ] && return 0
+    else
+       Log_warn "Setup_isJbossApp: Setup File not Found for ${package}"
+    fi
+
+    return 1
+}
+
+function Setup_isUseBMI()
+{
+    local packages=${1:?'[ERROR]Setup_isUseBMI: products name required!'}
+    
+    local package 
+    for package in $packages
+    do
+        local setup_file=${INSTALLER_DIR}/products/${package}/setup.shf
+
+        [ ! -e "${setup_file}" ] && setup_file=${BMI_HOME}/conf/products/${package}/setup.shf
+        local packageSuffix="products_${package}"
+        if [ -f ${setup_file} ]; then
+            source ${setup_file}
+            l_cmd="\$${packageSuffix}_isUseBMI"
+            eval "l_isUseBMI=$l_cmd"
+            [ "${l_isUseBMI}" = "$TRUE" ] && return 0
+        else
+            Log_warn "Setup_isUseBMI: Setup File not Found for ${package}"
+        fi
+    done
+
+    return 1
+}
+
+function Setup_getDependencies()
+{
+    local packages=${1:?'[ERROR]Setup_getDependencies: product name required!'}
+    local retVar=${2:?'[ERROR]Setup_getDependencies: return var is required!'}
+    local type=$3
+
+    local package
+    local dependencies
+
+    for package in $packages
+    do
+        [ "$type" != "" ] && package="$type/$package"
+
+        local packageSuffix=`echo ${package} | sed 's/\//_/g'`
+
+        local setup_file=${INSTALLER_DIR}/${package}/setup.shf
+        [ ! -e "${setup_file}" ] && setup_file=${BMI_HOME}/conf/${package}/setup.shf
+
+        if [ -f ${setup_file} ]; then
+            source ${setup_file}
+            l_cmd="\$${packageSuffix}_dependencies"
+            eval "dependencies=\"$dependencies $l_cmd\""
+        fi
+    done
+
+    local distinct
+    CM_distinct "distinct" "${dependencies}"
+    
+	 # because BC_validateDBAccessible will try to install mysql, here skip it
+    distinct="`echo ${distinct} | sed 's/mysql//'`" 		
+    
+    eval "$retVar=\"$distinct\""
+}
+
+function Setup_containJbossApp()
+{
+    local l_products=$1
+    local l_product
+    for l_product in ${l_products}
+    do
+        Setup_isJbossApp "products/$l_product" && return 0
+    done
+    return 1
+}
+
+function Setup_isUseDB()
+{
+    local package=${1:?'[ERROR]Setup_isUseDB: product name required!'}
+    local sql_file=${INSTALLER_DIR}/${package}/dbscripts
+
+    test -d ${sql_file}
+}
+
+function Setup_containUseDB()
+{
+    local packages=${1:?'[ERROR]Setup_containUseDB: products name required!'}
+
+    local package
+    for package in ${packages}
+    do
+        local sql_file=${INSTALLER_DIR}/products/${package}/dbscripts
+
+        [ -d ${sql_file} ] && return 0
+    done
+
+    return 1
+}
+
+function Setup_checkEnv()
+{
+    local products=$1
+    
+    BC_checkLinuxVersion
+    BC_validateUser
+    BC_validateSudo
+    BC_validateWritable
+
+    local installedProducts
+    Setup_findAllInstalled "installedProducts"
+
+    if [ "${products}" != "" ]; then
+        Setup_containJbossApp "${products}" && BC_validateNoJbossRunning
+    elif [ "${installedProducts}" != "" ]; then
+        BC_validateNoJbossRunning
+    fi
+}
+
+function Setup_checkEnv2()
+{
+	BC_checkLinuxVersion
+    BC_validateUser
+    BC_validateSudo
+    BC_validateWritable
+}
+
+function Setup_findInstalledJbossApp()
+{
+    local retVar=${1:?'[ERROR]Setup_findInstalledJbossApp: return variable name required!'}
+    local products=$2
+    local found
+    Setup_isProductsInstalled "sc" && found="sc"
+    local product
+    #if installer package does not include all products
+    if [ -d ${BMI_HOME}/conf/products ]; then
+        for product in ${BMI_HOME}/conf/products/*
+        do
+            local product=$(basename $product)
+            Setup_isJbossApp "products/${product}" && Setup_isInstalled "products/${product}" \
+            && found="$found ${product}"
+        done
+    fi
+
+    #for compabability
+    if [ -d ${INSTALLER_DIR}/products ]; then
+        for product in ${INSTALLER_DIR}/products/*
+        do
+            local product=$(basename $product)
+            Setup_isJbossApp "products/${product}" && Setup_isInstalled "products/${product}" \
+            && found="$found ${product}"
+        done
+    fi
+
+    local l_found1
+    local l_found
+    CM_distinct "l_found1" "$found"
+
+    if [ "$products" != "" ]; then
+       CM_same "l_found" "${products}" "${l_found1}"
+    else
+       l_found="${l_found1}"
+    fi
+
+    eval "$retVar=\"${l_found}\""
+}
+
+function Setup_findInstalledNotJbossApp()
+{
+    local retVar=${1:?'[ERROR]Setup_findInstalledNoJbossApp: return variable name required!'}
+    local products=$2
+    local found
+    Setup_isProductsInstalled "sc" && found="sc"
+    local product
+    #if installer package does not include all products
+    if [ -d ${BMI_HOME}/conf/products ]; then
+        for product in ${BMI_HOME}/conf/products/*
+        do
+            local product=$(basename $product)
+            ! Setup_isJbossApp "products/${product}" && Setup_isInstalled "products/${product}" \
+            && found="$found ${product}"
+        done
+    fi
+
+    #for compabability
+    if [ -d ${INSTALLER_DIR}/products ]; then
+        for product in ${INSTALLER_DIR}/products/*
+        do
+            local product=$(basename $product)
+            ! Setup_isJbossApp "products/${product}" && Setup_isInstalled "products/${product}" \
+            && found="$found ${product}"
+        done
+    fi
+
+    local l_found
+    local l_found1
+    CM_distinct "l_found1" "$found"
+
+    if [ "$products" != "" ]; then
+       CM_same "l_found" "${products}" "$l_found1"
+    else
+       l_found="${l_found1}"
+    fi
+
+    eval "$retVar=\"$l_found\""
+}
+
+function Setup_findAllInstalled()
+{
+    local retVar=${1:?'[ERROR]Setup_findAllInstalled: return variable name required!'}
+    local products=$2
+    local found
+    Setup_isProductsInstalled "sc" && found="sc"
+    local product
+    #if installer package does not include all products
+    if [ -d ${BMI_HOME}/conf/products ]; then
+        for product in ${BMI_HOME}/conf/products/*
+        do
+            local product=$(basename $product)
+            Setup_isInstalled "products/${product}" \
+            && found="$found ${product}"
+        done
+    fi
+
+    #for compabability
+    if [ -d ${INSTALLER_DIR}/products ]; then
+        for product in ${INSTALLER_DIR}/products/*
+        do
+            local product=$(basename $product)
+            Setup_isInstalled "products/${product}" \
+            && found="$found ${product}"
+        done
+    fi
+
+    local l_found
+    local l_found1
+    CM_distinct "l_found1" "$found"
+
+    if [ "$products" != "" ]; then
+       CM_same "l_found" "${products}" "${l_found1}"
+    else
+       l_found="${l_found1}"
+    fi
+
+    if [ "${l_found}" != "" ] && CM_singleStr "${l_found}" "bmi"; then
+        l_found="bmi `echo ${l_found} | sed 's/bmi//'`"
+    fi
+
+    eval "$retVar=\"${l_found}\""
+}
+
+function Setup_findJbossApp()
+{
+    local products=${1:?'[ERROR]Setup_findJbossApp: product list required!'}
+    local retVar=${2:?'[ERROR]Setup_findJbossApp: return variable name required!'}
+
+    local found
+    local product
+    for product in ${products}
+    do
+        Setup_isJbossApp "products/${product}" && found="$found ${product}"
+    done
+
+    eval "$retVar=\"$found\""
+}
+
+function Setup_findNotJbossApp()
+{
+    local products=${1:?'[ERROR]Setup_findNotJbossApp: product list required!'}
+    local retVar=${2:?'[ERROR]Setup_findNotJbossApp: return variable name required!'}
+
+    local found
+    local product
+    for product in ${products}
+    do
+        ! Setup_isJbossApp "products/${product}" && found="$found ${product}"
+    done
+
+    eval "$retVar=\"$found\""
+}
+
+function Setup_checkDependencie()
+{
+    local products=${1:?'[ERROR]Setup_checkDependencie: product list required!'}
+    local mode="$2"
+
+    local result
+    local l_result
+    local productsDep
+
+    log "Check dependencies ..."
+    Setup_getDependencies "${products}" "productsDep" "products"
+
+    log "Installation depend tools '${productsDep}'."
+
+    local tool
+    for tool in ${productsDep}
+    do
+        log "Checking or reinstalling '$tool' ..."
+        if [ "$tool" = "jboss" ] && [ "${BMI_COINSTALL}" != "true" ] && [ "$mode" != "db" ]; then
+            Setup_uninstallTools "jboss"
+            l_result=$? && ((result==0)) && result=${l_result}
+            Setup_installTools "jboss"
+            l_result=$? && ((result==0)) && result=${l_result}
+        else
+            Setup_installTools "$tool"
+            l_result=$? && ((result==0)) && result=${l_result}
+        fi
+    done
+
+    return $result
+}
+
+function Setup_startInstallDbOnly()
+{
+    local products=${1:?'[ERROR]Setup_runInstallProducts: product list required!'}
+
+    if ! Setup_containUseDB "${products}"; then
+        Log_empty
+		Log_err "No database objects need to be installed for products: ${products}."
+		Log_empty
+		return 1
+    fi
+
+    BC_validateDBAccessible
+
+    log "The installation will remove all installed database objects before the new installation."
+	if ! CM_askYesOrNo "Would you like to continue?" No $INSTALL_CONFIRM; then
+		log "User aborts the operation."
+		log "exit."
+		exit 1
+	fi
+
+    Setup_forceUninstallDB "${products}"
+    Setup_installProducts "${products}" "db"
+
+    local installedProducts
+    Setup_findAllInstalled "installedProducts"
+
+    if [ "${installedProducts}" != "" ]; then
+		echo
+        log "Found installed components of products '${installedProducts}'."
+        if CM_askYesOrNo "Do you want to update the new database configurion for them?" Yes $INSTALL_CONFIRM; then
+			BC_saveBmiProperties
+	    fi
+    fi
+    return $?
+}
+
+#for install components and all
+function Setup_startInstallNormal()
+{
+    local products=${1:?'[ERROR]Setup_runInstallProducts: product list required!'}
+    local mode=$2
+    local result
+    local l_result
+    
+	Setup_checkInstalled "${products}"
+	 
+    if [ "${mode}" != "com" ] && Setup_containUseDB "${products}"; then
+        BC_validateDBAccessible
+    elif [ "${mode}" = "com" ] && Setup_containUseDB "${products}"; then
+        BC_specifyDBAddress
+    elif [ "${mode}" != "db" ] && Setup_isUseBMI "${products}" && [ "${BMI_COINSTALL}" != "true" ]; then
+        ##for the application working with BMI but deployed as standalone
+        BC_specifyBMIAddr 
+    fi
+
+    if [ "${BMI_INSTALLED_JBOSSAPP}" != "" ] && Setup_containJbossApp "${products}" && [ "${BMI_COINSTALL}" != "true" ]; then
+        #The installation process should not uninstall the database for the risk
+        #Because, It's dangerous if the installing database is not same with the installed database.
+        #For example, if the database is on a remote machine, and user DO want to preserve it.
+        Setup_uninstallProducts "${BMI_INSTALLED_JBOSSAPP}" "com"
+    fi
+    
+    if [ "${BMI_INSTALLED_NOTJBOSSAPP}" != "" ]; then
+        ##The installation process should not uninstall the database for the risk
+        Setup_uninstallProducts "${BMI_INSTALLED_JBOSSAPP}" "com"
+    fi
+
+    #for the case: installer can not judge whether database objects were installed in one machine
+    if [ "${mode}" != "com" ]; then
+        local l_installedProductsInDB
+        BC_getInstalledProductsFromDB "l_installedProductsInDB"
+        [ "${l_installedProductsInDB}" != "" ] && Setup_forceUninstallDB "${products}"
+    fi
+
+    Setup_checkDependencie "${products}" "${mode}"
+    l_result=$? && ((result==0)) && result=${l_result}
+
+    Setup_installProducts "${products}" "${mode}"
+    l_result=$? && ((result==0)) && result=${l_result}
+
+    BC_saveBmiProperties
+
+    return $result
+}
+
+function Setup_startInstall()
+{
+    local products=${1:?'[ERROR]Setup_runInstallProducts: product list required!'}
+    local mode=$2
+
+    local l_result
+
+    if [ "${mode}" = "db" ]; then
+       Setup_startInstallDbOnly "${products}"
+    else
+       Setup_startInstallNormal "${products}" "${mode}"
+    fi
+
+	l_result=$?
+
+    Log_empty
+    if ((l_result==0)); then
+        log "The installation is completed."
+    else
+        Log_err "Some errors exists. The installation is incomplete."
+    fi
+
+    [ "${mode}" != "db" ] && BC_InstalledFinally
+}
+
+function Setup_checkInstalled()
+{
+    local products=${1:?'[ERROR]Setup_checkInstalled: product list required!'}
+
+    BMI_INSTALL_PRODUCTS="${products}"
+
+    #all products that has been installed in this machine
+    local allInstalledApp
+    Setup_findAllInstalled "allInstalledApp"
+    BMI_INSTALLED_ALL_PRODUCTS="${allInstalledApp}"
+	 
+	 #all jboss products that has been installed in this machine
+    local allInstalledJbossApp
+    Setup_findInstalledJbossApp "allInstalledJbossApp"
+    [ "$BMI_INSTALLED_JBOSSAPP" = "" ] && BMI_INSTALLED_JBOSSAPP="${allInstalledJbossApp}"
+
+    #all non-jboss products that has been installed in this machine
+    local allInstalledNotJbossApp
+    Setup_findInstalledNotJbossApp "allInstalledNotJbossApp"
+
+    #the jboss products in the input parameter
+    local thisJbossApp
+    Setup_findJbossApp "${products}" "thisJbossApp"
+    [ "$BMI_INSTALL_JBOSSAPP" = "" ] && BMI_INSTALL_JBOSSAPP="${thisJbossApp}"
+	
+	 #non-jboss products in the input parameter
+    local thisNotJbossApp
+    CM_diff "thisNotJbossApp" "${products}" "${thisJbossApp}"
+	
+	 #in the input paramter, what non-jboss products has been installed
+    local thisInstalledJbossApp
+    CM_same "thisInstalledJbossApp" "${allInstalledJbossApp}" "${thisJbossApp}"
+
+    #all installed jboss products that is not in the input parameter
+    local otherInstalledJbossApp
+    CM_diff "otherInstalledJbossApp" "${allInstalledJbossApp}" "${thisJbossApp}"
+	
+	 #all installed jboss products that is not in the input parameter
+    local otherInstalledNotJbossApp
+    CM_diff "otherInstalledNotJbossApp" "${allInstalledNotJbossApp}" "${thisNotJbossApp}"
+	
+    #what can be co-installed 
+    local coInstallJbossApp
+    CM_mergeArray "coInstallJbossApp" "${allInstalledJbossApp}" "${thisJbossApp}"
+    [ "$BMI_COINSTALL_JBOSSAPP" = "" ] && BMI_COINSTALL_JBOSSAPP="${coInstallJbossApp}"
+
+    #if [ ! -z "${allInstalledApp}" ] && [ "${allInstalledApp}" != "sc" ]; then
+    #   BC_showInstalled
+    #fi
+  
+    if [ "$thisJbossApp" != "" ]; then
+        if [ "$otherInstalledJbossApp" != "" ] && Setup_checkCoinstall "${coInstallJbossApp}"; then
+            Log_warn "Found other Jboss Application \"${otherInstalledJbossApp}\" has been installed in this machine."
+            local selectOptions="Remove-all co-install exit"
+            log "What are you want to do: "
+            select option in $selectOptions
+            do
+                case $REPLY in
+                1)
+                    BMI_COINSTALL=false
+                    break;;
+                2)
+                    BMI_COINSTALL=true
+                    break;;
+                3)
+                    exit 0
+                esac
+            done
+        elif [ "$allInstalledJbossApp" != "" ]; then
+            Log_warn "Found Jboss Application '${allInstalledJbossApp}' has been installed in this machine."
+            Log_warn "The installation will removed it."
+            if ! CM_askYesOrNo "Would you like to continue?" No $INSTALL_CONFIRM; then
+                log "User aborts the operation."
+                log "exit."
+                exit 1
+            fi
+        elif [ -e "${JBOSS_HOME}" ]; then
+           Log_warn "Found other Jboss Application 'unknown' has been installed in this machine."
+           Log_warn "The installation will removed it."
+           if ! CM_askYesOrNo "Would you like to continue?" No $INSTALL_CONFIRM; then
+                log "User aborts the operation."
+                log "exit."
+                exit 1
+            fi
+        fi
+    fi
+
+    local thisInstalledNotJbossApp
+    CM_same "thisInstalledNotJbossApp" "${allInstalledNotJbossApp}" "${thisNotJbossApp}"
+    BMI_INSTALLED_NOTJBOSSAPP="${thisInstalledNotJbossApp}"
+
+    if [ "$thisInstalledNotJbossApp" != "" ]; then
+       Log_warn "Found \"${thisInstalledNotJbossApp}\" has been installed in this machine."
+       Log_warn "The old installation will be removed."
+       if ! CM_askYesOrNo "Would you like to continue?" No $INSTALL_CONFIRM; then
+           log "User aborts the operation."
+           log "exit."
+           exit 1
+       fi
+    fi
+}
+
+function Setup_installProductTools()
+{
+   local package=${1:?'[ERROR]Setup_installProductTools: product list required!'}
+
+   [ ! -d ${INSTALLER_DIR}/${package}/tools ] && return 0
+
+   Log_empty
+   log "Installing ${package} Tools ..."
+
+   mkdir -p ${BMI_TOOLS_DIR}
+
+   local file
+   for file in ${INSTALLER_DIR}/${package}/tools/*
+   do
+       [ -d $file ] && BC_deployFolder "$file" ${BMI_TOOLS_DIR}
+
+       if [ -f $file ] && [[ "`basename $file`" = *".zip" ]]; then
+            unzip -o $file -d ${BMI_TOOLS_DIR} >> ${GLOBAL_LOG_FILE}
+       fi
+
+       if [ -f $file ] && [[ "`basename $file`" = *".sh" ]]; then
+            BC_deployFile $file ${BMI_TOOLS_DIR}
+       fi
+   done
+   log "'${package}' tools is installed."
+   Log_empty
+}
+
+function Setup_hasProductsInstalled()
+{
+    local installedProducts
+    Setup_findAllInstalled "installedProducts"
+    [ "$installedProducts" != "" ] && [ "$installedProducts" != "sc" ] && return 0
+    return 1
+}

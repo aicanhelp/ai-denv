@@ -1,0 +1,341 @@
+#!/bin/sh
+##############################################################################################
+#
+# bashup.shf
+# this script file defines all function about backup
+#
+##############################################################################################
+
+#for backup
+BMI_TEMP_DIR_FOR_BACKUP_NAME=_l_temp_bmi_backup
+BMI_TEMP_DIR_FOR_BACKUP=$BMI_TEMP_DIR/$BMI_TEMP_DIR_FOR_BACKUP_NAME
+BMI_DB_BASE_DUMP_FILENAME=bmibackup-db-base.dump
+BMI_DB_TABLE_DUMP_FILENAME=bmibackup-db-table.dump
+BMI_COM_BAK_FILENAME=bmibackup-com.tar
+BMI_BAK_CONF_FILE=bmibackup.conf
+BMI_BAK_CONF_VERSION=bmi.version
+BMI_BAK_CONF_APP=bmi.application
+BMI_BAK_CONF_NAME=backup.archive.name
+BMI_BAK_ARCHIVE_NAME="BMI Backup Archive"
+
+function BAK_getBakProperty()
+{
+    local _l_tar_file=${1:?'[ERROR]BAK_getBakProperty: argument tarfile required!'}
+    local _l_property=${2:?'[ERROR]BAK_getBakProperty: argument property name required!'}
+    local _l_retVar="${3:?'[ERROR]BAK_getBakProperty: argument return variable name required!'}"
+
+    ! tar tf $_l_tar_file ${BMI_TEMP_DIR_FOR_BACKUP_NAME}/$BMI_BAK_CONF_FILE >& /dev/null && return
+
+    tar xf $_l_tar_file ${BMI_TEMP_DIR_FOR_BACKUP_NAME}/$BMI_BAK_CONF_FILE
+    local _l_value
+    Conf_getPropertyFromFile ${BMI_TEMP_DIR_FOR_BACKUP_NAME}/$BMI_BAK_CONF_FILE "$_l_property" "_l_value"
+    eval "$_l_retVar='$_l_value'"
+    rm -rf $BMI_TEMP_DIR_FOR_BACKUP_NAME
+}
+
+#function: BAK_checkBakFile
+#usage: BAK_checkBakFile tarFile, component
+function BAK_checkBakFile()
+{
+    local _l_tar_file=${1:?'[ERROR]BAK_checkBakFile: argument back up tar file required!'}
+    local _l_option=${2:?'[ERROR]BAK_checkBakFile: argument option required!'}
+
+    local _l_arch_name
+    BAK_getBakProperty "$_l_tar_file" "$BMI_BAK_CONF_NAME" _l_arch_name
+    if [ "$_l_arch_name" != "$BMI_BAK_ARCHIVE_NAME" ]; then
+       log " "
+       Log_err "The file '$_l_tar_file' is not a valid bmi backup archive."
+       log " "
+       exit 0
+    fi
+
+    local bak_version
+    BAK_getBakProperty "$_l_tar_file" "$BMI_BAK_CONF_VERSION" bak_version
+    local l_new_version
+    BC_getPackageVer l_new_version
+
+    local bak_version_2=${bak_version#*' '}
+    local l_new_version_2=${l_new_version#*' '}
+    if expr "$bak_version_2" '!=' "$l_new_version_2" >& /dev/null; then
+       log " "
+       Log_err "Using the incorrect installer to restore the installation can cause some unexpected results."
+       Log_err "The current installer is for '${l_new_version}'."
+       Log_err "User wants to restore to '${bak_version}'."
+       Log_err "Please use the installer for '${bak_version}' to finish the restoration."
+       log " "
+       exit 0
+    fi
+
+    if [ "${_l_option}" != "${INSTALL_MODE_DB}" ] && ! CM_isFileInTar "${_l_tar_file}" "${BMI_COM_BAK_FILENAME}"; then
+       log " "
+       Log_err "Invalid backup tar file (${_l_tar_file}): no bmi components backed up in this tar file."
+       log " "
+       exit 0
+    fi
+
+    if [ "${_l_option}" != "${INSTALL_MODE_COM}" ] && ! CM_isFileInTar "${_l_tar_file}" "${BMI_DB_BASE_DUMP_FILENAME}"; then
+       log " "
+       Log_err "Invalid backup tar file (${_l_tar_file}): no bmi database objects backed up in this tar file."
+       log " "
+       exit 0
+    fi
+}
+
+function BAK_backupCOM()
+{
+    local installedJbossApp
+    local installedNotJbossApp
+
+    log "Start to backup installed Components ..."
+
+    Setup_findInstalledJbossApp "installedJbossApp"
+    Setup_findInstalledNotJbossApp "installedNotJbossApp"
+
+    local backup_files="${BMI_BACKUP_FILES}"
+    if [ "${installedJbossApp}" != "" ] && [ "${installedJbossApp}" != "sc" ]; then
+        backup_files="${backup_files} ${JBOSS_BACKUP_FILES}"
+    fi
+
+    Setup_backupProducts "${installedJbossApp} ${installedNotJbossApp}" "comBackupFiles" "com"
+
+    backup_files="${backup_files} ${comBackupFiles}"
+
+    local finalBackupFiles
+    CM_distinct "finalBackupFiles" "$backup_files"
+
+    backup_files="${finalBackupFiles}"
+    finalBackupFiles=""
+    for file in ${backup_files}
+    do
+       CM_fileExists "$file" && finalBackupFiles="${finalBackupFiles} $file"
+    done
+ 
+    sudo tar cpsvzPf ${BMI_TEMP_DIR_FOR_BACKUP}/${BMI_COM_BAK_FILENAME} $finalBackupFiles
+
+    log "Finish backup installed Components. "
+    log " "
+}
+
+function BAK_backupDB()
+{
+    log " "
+    log "Start to backup installed DataBase Objects ... "
+
+    local _l_big_tables="bmi.sgsessionhistory,bmi.sgsessionhistory_b,bmi.alarm"
+
+    log " "
+    log "Export bmi base data into $BMI_TEMP_DIR_FOR_BACKUP/$BMI_DB_BASE_DUMP_FILENAME ..."
+    if ! DB_exportDbData "DB_DESC" "$BMI_TEMP_DIR_FOR_BACKUP/$BMI_DB_BASE_DUMP_FILENAME" -E${_l_big_tables};then
+       Log_err "Backup Failure: Fail to export DataBase Objects. "
+       log " "
+       exit 1
+    fi
+
+    if [ "${DB_DESC[0]}" = "mysql" ]; then
+        local _l_now=`date +"%Y-%m-%d"`
+        local _l_starttime
+        Date_add "${_l_now}" -${BMI_BIG_TABLE_BACKUP_DAYS} d "_l_starttime"
+
+        local _l_where="createtime>'${_l_starttime}'";
+
+        if ! DB_exportDbData "DB_DESC" "$BMI_TEMP_DIR_FOR_BACKUP/sgsessionhistory-${BMI_DB_TABLE_DUMP_FILENAME}" -I"sgsessionhistory" -W"${_l_where}";then
+            Log_err "Backup Failure: Fail to export DataBase Objects table--sgsessionhistory. "
+            log " "
+            exit 1
+        fi
+
+        local _l_where="creationtime>'${_l_starttime}'";
+
+        if ! DB_exportDbData "DB_DESC" "$BMI_TEMP_DIR_FOR_BACKUP/alarm-${BMI_DB_TABLE_DUMP_FILENAME}" -I"alarm" -W"${_l_where}";then
+            Log_err "Backup Failure: Fail to export DataBase Objects--alarm. "
+            log " "
+            exit 1
+        fi
+    fi
+
+    log "Finish backup installed DataBase Objects. "
+    log " "
+}
+
+function BAK_restoreComponents()
+{
+    local bakApp=${1:?'[ERROR]BAK_restoreComponents: argument bakApp required!'}
+    log " "
+    log "Start to restore  Components ... "
+    log "Remove installed ..."
+
+    Setup_uninstallProducts "$bakApp" "com"
+
+    sudo tar xpsvzPf "${BMI_TEMP_DIR_FOR_BACKUP}/${BMI_COM_BAK_FILENAME}"
+
+    Setup_restoreProducts "$bakApp" "com"
+    # perhaps, the database addr has been changed
+    #BC_setDBAddr
+
+    log "Finish restore components of ${bakApp}."
+    log " "
+}
+
+function BAK_restoreDatabase()
+{
+    local bakApp=${1:?'[ERROR]BAK_restoreDatabase: argument bakApp required!'}
+    log " "
+    log "Start to restore installed DataBase Objects ... "
+
+    log "Remove the old database objects ... "
+    Setup_uninstallProducts "${bakApp}" "db"
+    Setup_restoreProducts "${bakApp}" "db"
+
+    log "Import database objects to $DB_ADDR ... ..."
+    if DB_importDbData "DB_DESC" "${BMI_TEMP_DIR_FOR_BACKUP}/${BMI_DB_BASE_DUMP_FILENAME}"; then
+       log "BMI Base data objects has been imported successfully."
+    else
+       log "Fail to import database data."
+       return 1
+    fi
+
+    for bak_file in ${BMI_TEMP_DIR_FOR_BACKUP}/*
+    do
+        local isDumpFile=`expr "$bak_file" ':' ".*table\.dump"`
+        [ "${isDumpFile}" = "0" ] && continue
+        if DB_importDbData "DB_DESC" "${bak_file}"; then
+            log "BMI table data has been imported successfully."
+        else
+            log "Fail to import database table data."
+            return 1
+        fi
+    done
+
+    BC_setDBAddr
+    log "Finish restore installed DataBase Objects. "
+    log " "
+}
+
+function BAK_doBackup()
+{
+    local _l_option=${1:?'[ERROR]BAK_doBackup: argument option required!'}
+    local _l_tar_file=${2:?'[ERROR]BAK_doBackup: argument backup tar file required!'}
+    mkdir -p $BMI_TEMP_DIR_FOR_BACKUP
+
+    local installedApp
+    Setup_findAllInstalled "installedApp"
+
+    [ "${_l_option}" != "${INSTALL_MODE_DB}" ] && BAK_backupCOM
+
+    [ "${_l_option}" != "${INSTALL_MODE_COM}" ] && Setup_containUseDB "${installedApp}" && BAK_backupDB
+
+    local _l_version_info
+    BC_getInstalledVer _l_version_info
+    Conf_setPropertyToFile $BMI_TEMP_DIR_FOR_BACKUP/$BMI_BAK_CONF_FILE "$BMI_BAK_CONF_VERSION" "$_l_version_info"
+    Conf_setPropertyToFile $BMI_TEMP_DIR_FOR_BACKUP/$BMI_BAK_CONF_FILE "$BMI_BAK_CONF_NAME" "$BMI_BAK_ARCHIVE_NAME"
+    Conf_setPropertyToFile $BMI_TEMP_DIR_FOR_BACKUP/$BMI_BAK_CONF_FILE "$BMI_BAK_CONF_APP" "$installedApp"
+    [ "${_l_tar_file}" = "" ] && _l_tar_file="$BMI_BACKUP_DIR/$BMI_BACK_UP_TAR_FILENAME-`echo ${_l_version_info} | sed 's/  */_/g'`-`date +%Y%m%d%H%M%S`.tar"
+
+    CM_makeDir "`dirname $_l_tar_file`"
+    log " "
+    log "Back up BMI into $_l_tar_file ..."
+    log " "
+    pushd $BMI_TEMP_DIR
+    tar cvf $_l_tar_file $BMI_TEMP_DIR_FOR_BACKUP_NAME
+    popd
+    log " "
+    log "The bakcup file is $_l_tar_file."
+    log "Backup has been completed successfully. "
+    log "The version is $_l_version_info ."
+    log " "
+    return 0
+}
+
+
+function BAK_startBackup()
+{
+    local _l_option=${1:?'[ERROR]BAK_startBackup: argument option required!'}
+    local _l_tar_file=$2
+
+    local _l_version_info
+    BC_getInstalledVer _l_version_info
+    [ "${_l_tar_file}" = "" ] && _l_tar_file="$BMI_BACKUP_DIR/BmiBackup-`echo ${_l_version_info} | sed 's/  */_/g'`-`date +%Y%m%d%H%M%S`.tar"
+
+    if ! CM_askYesOrNo "Would you want to backup the current installed bmi to file '${_l_tar_file}'?" Yes $BACKUP_CONFIRM; then
+        log "User aborts the operation."
+        log "exit."
+        exit 1
+    fi
+
+    BC_getDBAddr
+    [ "$_l_option" != "$INSTALL_MODE_COM" ] && BC_validateDBAccessible
+
+    BAK_doBackup "${_l_option}" "${_l_tar_file}"
+}
+
+function BAK_doCheckForBackupForRestore()
+{
+   local bakApp=${1:?'[ERROR]BAK_doCheckForBackupForRestore: argument bakApp required!'}
+
+   log " "
+   if ! CM_askYesOrNo "Are you sure you want to restore  with the specifid backup tar file?" No $BACKUP_CONFIRM; then
+        log "User aborts the operation."
+        log "exit."
+        exit 1
+   fi
+
+   local installedJbossApp
+   Setup_findInstalledJbossApp "installedJbossApp" "${bakApp}"
+
+   local installedNotJbossApp
+   Setup_findInstalledNotJbossApp "installedNotJbossApp" "${bakApp}"
+
+   if [ "${installedJbossApp}" != "" ] || [ "${installedNotJbossApp}" != "" ];  then
+      if [ "$installedJbossApp" != "" ]; then
+          Log_warn "Jboss application ${installedJbossApp} was installed in this machine."
+      elif [ -e "${JBOSS_HOME}" ]; then
+          Log_warn "A jboss 'unknown' application was installed in this machine."
+      fi
+
+      if [ "$installedNotJbossApp" != "" ]; then
+          Log_warn "Application ${installedNotJbossApp} was installed in this machine."
+      fi
+
+      Log_warn "The restoration operation will remove them."
+      if ! CM_askYesOrNo "Would you like to continue?" No $BACKUP_CONFIRM; then
+           log "User aborts the operation."
+           log "exit."
+           exit 1
+       fi
+   fi
+}
+
+function BAK_startRestore()
+{
+    local _l_option=${1:?'[ERROR]BAK_startRestore: argument option required!'}
+    local _l_bak_file=${2:?'[ERROR]BAK_startRestore: argument tar file required!'}
+
+    BAK_checkBakFile "${_l_bak_file}" "${_l_option}"
+
+    local bakApp
+    BAK_getBakProperty "${_l_bak_file}" "${BMI_BAK_CONF_APP}" "bakApp"
+
+    BAK_doCheckForBackupForRestore "${bakApp}"
+
+    Setup_checkDependencie "${bakApp}"
+
+    log " "
+    log "Unpack the backed up BMI package ..."
+    log " "
+    mkdir -p $BMI_TEMP_DIR
+    pushd $BMI_TEMP_DIR
+    tar xvf $_l_bak_file
+    popd
+
+    [ "${_l_option}" != "${INSTALL_MODE_DB}" ] && BAK_restoreComponents "${bakApp}"
+
+    #After restored components, get the db property from the property file
+    BC_getDBAddr
+    [ "$_l_option" != "$INSTALL_MODE_COM" ] && BC_validateDBAccessible
+
+    [ "${_l_option}" != "${INSTALL_MODE_COM}" ] && Setup_containUseDB "${bakApp}" && BAK_restoreDatabase "${bakApp}"
+
+    log " "
+    log "Finish restoring BMI from '${_l_bak_file}'."
+    BC_InstalledFinally
+}

@@ -1,0 +1,783 @@
+#!/bin/sh
+#############################################################################################3
+#
+# bmicommon.shf
+# This script file defines many common functions for bmi installation
+#
+# Author: ndb478
+#
+##############################################################################################
+
+#function: BC_validateUser
+#verify whether the curent user is the installation user.
+#usage: BC_validateUser
+function BC_validateUser()
+{
+    if ! CM_isUser $INSTALL_USER; then
+       Log_err "You must be logged in as $INSTALL_USER to run this script."
+       Log_err "Log in as $INSTALL_USER and restart the script execution."
+       [ -f "${BMI_HOME}" ] && sudo chown bmcs:bmcs -R ${BMI_HOME}
+       exit 1
+    fi
+}
+
+#function: BC_validateSudo
+#verify whether the current user has been setup in /etc/sudoers with root permissions
+#usage: BC_validateSudo
+function BC_validateSudo()
+{
+    if ! CM_isSudo;  then
+       Log_err "$INSTALL_USER must be setup in /etc/sudoers with root permissions in order to run this script"
+       exit 1
+    fi
+}
+
+#function: BC_validateWritable
+#The installation user does not have write permission to the installation directory!
+#usage: BC_validateWritable
+function BC_validateWritable()
+{
+   if [ ! -w $INSTALLER_DIR ]; then
+      Log_err "The ${INSTALL_USER} user does not have write permission to the installation directory!"
+      Log_err "Change owner of installation kit directory to ${INSTALL_USER} or allow ${INSTALL_USER} user write access."
+      exit 1
+   fi
+}
+
+#function: BC_validateNoJbossRunning
+#before install new, update,patch and restoration jboss need to be shutdown
+#usage: BC_validateNoJbossRunning
+function BC_validateNoJbossRunning()
+{
+    if CM_isJbossRunning; then
+       Log_err "JBoss is running! Please shutdown JBoss first before installing."
+       exit 1
+    fi
+}
+
+function BC_checkLinuxVersion()
+{
+   local _l_version=`cat /etc/redhat-release | grep $OS_VERSION`
+
+   if [ -z "${_l_version}" ]; then
+       echo
+       Log_warn "Current release is required to be installed Red Hat Linux Enterprise release $OS_VERSION."
+       Log_warn "Current OS in this machine is `cat /etc/redhat-release`."
+       echo
+       if ! CM_askYesOrNo "Would you like to run this installer?" No; then
+           exit 0
+       fi
+   fi
+}
+
+#function: BC_isValidDBAddr
+#judge the database address, 'localhost' and valid ip string is valid database address
+function BC_isValidDBAddr()
+{
+    local _l_input_str=$1
+	
+    if [ -z "$_l_input_str" ]; then
+       Log_err "input DB address is empty."
+       return 1
+	fi
+	
+    if ! gethostip "$_l_input_str" > /dev/null 2>&1; then
+       Log_err "invalid host '$_l_input_str'"
+       return 1
+	fi
+}
+
+function BC_getDBAddr()
+{
+    local retVar1=$1
+    local retVar2=$2
+    local retVar3=$3
+    local temp_addr
+    local temp_type
+    local temp_instance
+
+    [ "${FORCE_DB_ADDR}" = "Y" ] && return
+
+    BC_getBmiProperty "$BMI_PROPERTY_DB_ADDR" "temp_addr"
+    BC_getBmiProperty "$BMI_PROPERTY_DB_TYPE" "temp_type"
+    BC_getBmiProperty "$BMI_PROPERTY_DB_INSTANCE" "temp_instance"
+    
+    [ "$temp_addr" = "" ] && temp_addr="localhost"
+    [ "$temp_type" = "" ] && temp_type="mysql"
+    [ "$temp_instance" = "" ] && temp_instance="bmi"
+
+    if [ "${retVar1}" = "" ] && [ "${retVar2}" = "" ]; then
+       DB_TYPE="${temp_type}"
+       DB_selectDBType
+       DB_ADDR="${temp_addr}"
+       DB_INSTANCE="${temp_instance}"
+       DB_updateDESC
+    else
+       eval "${retVar1}='${temp_type}'"
+       eval "${retVar2}='${temp_addr}'"
+       eval "${retVar3}='${temp_instance}'"
+    fi
+}
+
+function BC_installMysql()
+{
+    local l_ret=0
+    echo
+    log "Try to install/upgrade the latest MySql database server in this machine ..... "
+    [ "$FORCE_INSTALL_MYSQL" = "Y" ] && _l_install_mysql_force="-f"
+    if [ -f ${INSTALLER_MYSQL_DIR}/install.sh ]; then
+        if ! ${INSTALLER_MYSQL_DIR}/install.sh -i -l ${GLOBAL_LOG_FILE} $_l_install_mysql_force; then
+           l_ret=1
+        fi
+    else
+        Log_err "Mysql installation package is not found in ${INSTALLER_MYSQL_DIR}."
+        l_ret=1
+    fi
+
+    if [ $l_ret -ne 0 ]; then
+       log " "
+       Log_warn "Fail to install/upgrade the MySql Database server."
+       Log_warn "Installer will try to test the Mysql Database installed."
+    fi
+    log " "
+    return $l_ret
+}
+
+function BC_checkDBDefaultConfiguration()
+{
+
+     if [ "${DB_DESC[0]}" != "" ]; then
+        ! CM_askYesOrNo "Are you sure that the database type is '${DB_DESC[0]}'?" Yes && DB_DESC[0]=""
+     fi
+
+     if [ "${DB_DESC[0]}" = "" ]; then
+         echo
+         echo "A database type should be specified:"
+         PS3="Please select the database type:"
+         local db_type
+         select db_type in $DB_TYPES
+         do
+             if [ "${db_type}" != "" ]; then
+                 DB_TYPE=$db_type
+                 DB_selectDBType
+                 break
+             else
+                 echo "invalid option."
+             fi
+         done
+     fi
+
+     ! CM_askYesOrNo "Are you sure that the database address is '${DB_ADMIN_DESC[1]}'?" Yes ${DBADDR_CONFIRM} && return 1
+
+     if [ "${DB_TYPE}" = "mysql" ] && CM_isLocalAddress ${DB_ADMIN_DESC[1]}; then
+        if ! Setup_installTools "mysql"; then
+           ! CM_askYesOrNo "Would you want to continue?" No && exit 1
+        fi
+     fi
+     
+	 if [ "${DB_ADMIN_DESC[1]}" = "" ]; then
+     	echo
+     	read -p "The database address of '${DB_TYPE}' is [${DB_ADMIN_DESC[1]}]:" DB_ADDR
+     	[ "${DB_ADDR}" = "" ] && DB_ADDR="localhost"
+     	echo
+     fi
+
+     if [ "${DB_ADMIN_DESC[3]}" = "" ]; then
+        echo
+        echo "The password of Database Administrator user '${DB_ADMIN_DESC[2]}' is emtpy."
+        read -p "Please input the password of DBA user '${DB_ADMIN_DESC[2]}':" -ers DB_ADMIN_PWD
+        echo
+     fi
+
+     if [ "${DB_DESC[3]}" = "" ]; then
+        echo "The password of Database user '${DB_DESC[2]}' is emtpy."
+        read -p "Please input the password of DB user '${DB_DESC[2]}':" -ers DB_PWD
+        echo
+     fi
+ 
+     if ! CM_isLocalAddress ${DB_ADMIN_DESC[1]} && [ "${DB_ADMIN_DESC[6]}" = "" ]; then
+        echo "The database instance is in a remote mathine. The OS user must be set."
+		echo "The password of OS user '${DB_ADMIN_DESC[5]}' is emtpy."
+        read -p "Please input the password of OS user '${DB_ADMIN_DESC[5]}':" -ers DB_OS_PWD
+        while [ "${DB_OS_PWD}" = "" ]
+        do
+           echo
+           read -p "Please input the password of OS user '${DB_ADMIN_DESC[5]}':" -ers DB_OS_PWD
+        done
+        echo
+     fi
+
+     echo
+     DB_updateDESC
+}
+
+function BC_inputDBConfiguration()
+{
+     echo
+	 read -p "The database address of '${DB_TYPE}' is [${DB_ADMIN_DESC[1]}]:" DB_ADDR
+	 [ "${DB_ADDR}" = "" ] && DB_ADDR="${DB_ADMIN_DESC[1]}"
+	 echo
+
+     echo
+	 read -p "Please input the password of DB user '${DB_ADMIN_DESC[2]}':" -ers DB_ADMIN_PWD
+	 echo
+
+     #echo
+	 #read -p "input the password of DB user '${DB_DESC[2]}':" -ers DB_PWD
+	 #echo
+
+     if ! CM_isLocalAddress ${DB_ADDR}; then
+	     echo
+	     read -p "Please input the password of OS user '${DB_ADMIN_DESC[5]}':" -ers DB_OS_PWD
+         while [ "${DB_OS_PWD}" = "" ]
+         do
+            echo
+            read -p "Please input the password of OS user '${DB_ADMIN_DESC[5]}':" -ers DB_OS_PWD
+         done
+	     echo
+     fi
+     
+     echo
+
+     DB_updateDESC
+}
+
+function checkAndConfirmDBConfiguration()
+{
+    ! BC_isValidDBAddr "${DB_ADMIN_DESC[1]}" && return 1
+    ! DB_isDbAccessible  "DB_ADMIN_DESC" && return 1
+    
+    if ! CM_isLocalAddress ${DB_ADMIN_DESC[1]}; then
+       echo "WARN: The database address '${DB_ADMIN_DESC[1]}' is a remote address."
+    fi
+
+    log "The database '${DB_ADMIN_DESC[4]}@${DB_ADMIN_DESC[1]}' is accessible."
+    log "The installation may do some changes on this database."
+    ! CM_askYesOrNo "Are you sure to continue?" Yes ${DBADDR_CONFIRM} && return 1
+    return 0
+}
+
+#function: BC_validateDBAccessible
+#Test the database for accessibility.
+#usgae: BC_validateDBAccessible
+function BC_validateDBAccessible()
+{
+   log "Test the database for accessibility ... ..."
+
+   ! BC_checkDBDefaultConfiguration && BC_inputDBConfiguration
+
+   log "Database Type: ${DB_DESC[0]}; App Instance/Database: ${DB_INSTANCE}; System Instance/Database: ${DB_SYS_INSTANCE}"
+
+   while ! checkAndConfirmDBConfiguration
+   do
+		BC_inputDBConfiguration
+   done
+   
+   log " "
+}
+
+function BC_specifyDBAddress()
+{
+    Log_empty
+
+    log "The database configuration is required for the current installing applications."
+    echo "Please specify the database type, the following types can be selected:"
+    PS3="Please select the database type:"
+	local db_type
+	select db_type in $DB_TYPES
+	do
+		if [ "${db_type}" != "" ]; then
+            DB_TYPE=$db_type
+            DB_selectDBType
+            break
+        else
+            echo "invalid option."
+        fi
+	done
+	
+    local l_db_addr
+    echo
+    read -p "Please specify the Database address [$DB_ADDR]:" l_db_addr
+    [ "${l_db_addr}" = "" ] && l_db_addr=$DB_ADDR
+    while ! BC_isValidDBAddr "${l_db_addr}"
+    do
+       log "Invalid Database Address: ${l_db_addr}"
+       Log_empty
+       read -p "Please specify the Database address [$DB_ADDR]:" l_db_addr
+    done
+    echo
+    DB_ADDR=`gethostip -d ${l_db_addr}`
+    DB_updateDESC
+}
+
+#function: BC_getPackageVer
+#get the bmi version info from installation package
+#usgae: BC_getPackageVer retVar
+function BC_getPackageVer()
+{
+   local l_retVar=${1:?'[ERROR]BC_getPackageVer: argument returnVariable required!'}
+   local _l_installer_package=$2
+   [ "$_l_installer_package" == "" ] &&  _l_installer_package=${INSTALLER_DIR}
+   local _l_version_file=$_l_installer_package/$BMI_VERSION_FILE_NAME
+
+   eval "unset $l_retVar"
+   if [ ! -f  "$_l_version_file" ]; then
+       log " "
+       Log_warn "BMI version file $_l_version_file does not exit."
+       Log_warn "Installer can not get the version info from $_l_version_file."
+       log " "
+       eval "$l_retVar='unknown'"
+       return
+   fi
+   local l_bmi_version="`cat $_l_version_file`"
+   eval "$l_retVar='$l_bmi_version'"
+}
+
+#function: get_bmi_version_installed
+#get the bmi version info from installed bmi
+#usgae: get_bmi_version_installed retVar
+function BC_getInstalledVer()
+{
+   local l_retVar=${1:?'[ERROR]BC_getInstalledVer: argument returnVariable required!'}
+   ! BC_isInstalled && echo "Fail to call function 'BC_getInstalledVer': None BMI installed." && exit 1
+   eval "unset $l_retVar"
+
+   local _l_ver
+   BC_getBmiProperty "$BMI_PROPERTY_NAME_VERSION" "_l_ver"
+   # for compability
+   [ "${_l_ver}" = "" ] && BC_getBmiProperty "$BMI_PROPERTY_NAME_VERSION_0" "_l_ver"
+   eval "$l_retVar='$_l_ver'"
+}
+
+#function: BC_isSCInstalled
+#usage: BC_isSCInstalled
+function BC_isSCInstalled()
+{
+   local _l_file
+   for _l_file in $JBOSS_DEFAULT_DEPLOY_DIR/*bmcs.ear
+   do
+      [ -f "$_l_file" ] && return 0
+   done
+   return 1
+}
+
+function BC_isInstalled()
+{
+   local installedProducts
+   Setup_findAllInstalled "installedProducts"
+   [ ! -z "`echo ${installedProducts}|sed 's/ //g'`" ] && \
+   [ "${installedProducts}" != "sc" ] && return 0
+   return 1
+}
+
+function BC_checkInstalled()
+{
+    if ! BC_isInstalled; then
+         log "Nothing was installed in this machine."
+         exit 0
+   fi
+   BC_showInstalled
+}
+
+function BC_showInstalled()
+{
+   log " "
+
+   local installedProducts
+   Setup_findAllInstalled "installedProducts"
+
+   if [ ! -z "${installedProducts}" ] && [ "${installedProducts}" != "sc" ]; then
+      log "A BMI is installed in this machine."
+      log "Found: ${installedProducts}"
+      local _l_var
+      BC_getInstalledVer "_l_var"
+      log "Version: ${_l_var}"
+   else
+      log "Nothing is installed in this machine."
+   fi
+   log " "
+}
+
+function BC_InstalledFinally()
+{
+    log " "
+
+    local installedProducts
+    Setup_findAllInstalled "installedProducts"
+    log "Found Installed: ${installedProducts}"
+    log "The latest version is `cat $BMI_INSTALLER_VERSION_FILE`."
+}
+
+#function: BC_isCorrectOption
+#judge a app option value
+#usage: BC_isCorrectOption value options
+function BC_isCorrectOption()
+{
+    local _l_value=${1:?'[ERROR]BC_isCorrectOption: argument value required!'}
+    local _l_options=${2:?'[ERROR]BC_isCorrectOption: argument options required!'}
+    for v in $_l_options
+    do
+       [ "$v" = "$_l_value" ] && return 0
+    done
+    Log_err "Invalid install option '$_l_value'."
+    return 1
+}
+
+#function: BC_setInstallSilent, let the script install bmi by default silently
+#usage: BC_setInstallSilent
+function BC_setInstallSilent()
+{
+   DBADDR_CONFIRM=Y
+   INSTALL_CONFIRM=Y
+   UNINSTALL_CONFIRM=Y
+   BACKUP_CONFIRM=Y
+   FORCE_INSTALL_MYSQL=Y
+   FORCE_INSTALL_JDK=Y
+}
+
+#function: BC_deployFile
+#usage: BC_deployFile file target [-r]
+#write the copy log to INSTALLED_LOG_FILE
+function BC_deployFile()
+{
+   local _l_file="${1:?'[ERROR]BC_deployFile: argument file name required!'}"
+   local _l_todir=${2:?'[ERROR]BC_deployFile: argument dir name required!'}
+  
+   #copy to folder
+   if [ ! -d ${_l_todir} ]; then
+       mkdir -p ${_l_todir}
+   fi
+
+   local l_file
+   for l_file in ${_l_file}
+   do
+       if [ -f "${l_file}" ]; then
+           sudo cp -fpv "${l_file}" "${_l_todir}"  >> $INSTALLED_LOG_FILE
+       elif [ -d "${l_file}" ]; then
+                sudo cp -rfpv "${l_file}" "${_l_todir}"  >> $INSTALLED_LOG_FILE
+       else
+            Log_err "Fail to deploy file '${_l_file}': file not exists."
+            return
+       fi
+   done
+       
+   log "Deployed ${_l_file} to ${_l_todir}."
+}
+
+#function: BC_deployFolder
+#usage: BC_deployFolder: folder target
+#write the copy log to GLOBAL_LOG_FILE
+function BC_deployFolder()
+{
+    BC_deployFile $*
+}
+
+#function: BC_deployFile
+#usage: BC_deployFile file target [-r]
+#write the copy log to GLOBAL_LOG_FILE
+function BC_undeployFile()
+{
+   local _l_files="${1:?'[ERROR]BC_undeployFile: argument file name required!'}"
+
+   local _l_file
+   for _l_file in ${_l_files}
+   do
+       if [ -e ${l_file} ]; then
+            sudo rm -rf "${_l_file}" 
+       fi
+   done
+
+   log "Removed ${_l_files} ."
+}
+
+#function: BC_deployFolder
+#usage: BC_deployFolder: folder target
+#write the copy log to GLOBAL_LOG_FILE
+function BC_undeployFolder()
+{
+    BC_undeployFile $*
+}
+
+#function: BC_saveBmiProperties
+function BC_saveBmiProperties()
+{
+    BC_setNewVer
+    BC_setDBAddr
+
+    local installedProducts
+    Setup_findAllInstalled "installedProducts"	
+    BC_setBmiProperty "${BMI_PROPERTY_INSTALLED_PRODUCTS}" "${installedProducts}"
+	
+    if ! Setup_isProductsInstalled "bmi"; then
+	BC_setBmiProperty "${BMI_PROPERTY_SA_INSTALLED}" "true"
+    else
+	BC_setBmiProperty "${BMI_PROPERTY_SA_INSTALLED}" "false"
+    fi
+    
+    BC_setBmiProperty "$BMI_PROPERTY_DB_ADDR" "$DB_ADDR"
+    BC_setBmiProperty "$BMI_PROPERTY_DB_TYPE" "$DB_TYPE"
+    BC_setBmiProperty "$BMI_PROPERTY_DB_INSTANCE" "$DB_INSTANCE"
+    #BC_setBmiProperty "DB_ADDR" "$DB_ADDR"
+    BC_setBmiProperty "BMI_HOME" "$BMI_HOME"
+}
+
+function BC_setNewVer()
+{
+    #save version
+    local l_version
+    BC_getPackageVer l_version
+    BC_setBmiProperty "$BMI_PROPERTY_NAME_VERSION" "$l_version"
+}
+
+function BC_pingAddr()
+{
+    local _l_addr="${1:?'[ERROR]BC_pingAddr: argument address required!'}"
+
+    ! ping -c 1 -w 1 ${_l_addr} >/dev/null && return 1
+       
+    return 0
+}
+
+function BC_updateDSFile()
+{
+    local dbType="${1:?'[ERROR]BC_updateDSFile: db type required!'}"
+    local dsFile="${2:?'[ERROR]BC_updateDSFile: ds file required!'}"
+
+    if [ ! -f $dsFile ]; then
+        return 0
+    fi
+
+    sudo rm -f $BMI_TEMP_DIR/bmi_ds.tmp
+    if [ "${dbType}" = "mysql" ]; then
+        #change the database address
+        local _l_pattern="jdbc:mysql://.*:3306"
+        local _l_value="jdbc:mysql://$DB_ADDR:3306"
+        awk -vpattern=$_l_pattern -vvalue=$_l_value '{sub(pattern,value);print}' $dsFile > $BMI_TEMP_DIR/bmi_ds.tmp
+        mv -f $BMI_TEMP_DIR/bmi_ds.tmp $dsFile
+    elif [ "${dbType}" = "oracle" ]; then
+        #change the database address
+        local _l_pattern="@.*:1521:.*<"
+        local _l_value="@$DB_ADDR:1521:${DB_INSTANCE}<"
+        awk -vpattern=$_l_pattern -vvalue=$_l_value '{sub(pattern,value);print}' $dsFile > $BMI_TEMP_DIR/bmi_ds.tmp
+        mv -f $BMI_TEMP_DIR/bmi_ds.tmp $dsFile
+    fi
+    log "Changed the datasource file '$dsFile', set new value: '${_l_value}'".
+}
+
+function BC_specifyBMIAddr()
+{
+    Log_empty
+    log "Products  will be installed as standalone, the BMI address should be specified."
+    echo
+    echo "The database type of BMI should be specified."
+    PS3="Please select the database type:"
+    local db_type
+    select db_type in $DB_TYPES
+    do
+        if [ "${db_type}" != "" ]; then
+             DB_TYPE=$db_type
+             DB_selectDBType
+             break
+        else
+             echo "invalid option."
+        fi
+    done
+
+    echo
+    echo "The BMI address should be configurd."
+    local input_addr
+    input_addr=$DB_ADDR
+    while ! BC_isValidDBAddr "$input_addr" || \
+          ! CM_askYesOrNo "Are you sure the BMI address is `gethostip -d ${input_addr}`?" Yes ${DBADDR_CONFIRM}
+    do
+        echo -n "Please specify the BMI address:"
+        read input_addr
+        [ -z $input_addr ] && input_addr=$DB_ADDR
+    done
+    DB_ADDR=`gethostip -d ${input_addr}`
+
+    DB_updateDESC
+}
+
+function BC_setDBAddr()
+{
+    #When Jboss is running, it means that no jboss application was installed
+    #so the configuration file in jboss should not be modified
+    CM_isJbossRunning && return 0
+
+    BC_updateDSFile "${DB_DESC[0]}" "$BMI_DS_FILE"
+    BC_updateDSFile "${DB_DESC[0]}" "$BMI_ORA_DS_FILE"
+}
+
+function BC_deployToCrond()
+{
+     local _l_file=${1:?'BC_deployToCrond: argument file name required!'}
+     if [ ! -f "$_l_file" ]; then
+       Log_err "BC_deployToCrond: file '$_l_file' not found."
+     fi
+    
+     BC_deployFile "${_l_file}" "/etc/cron.d"
+     local fileName=$(basename ${_l_file})
+     sudo chown root:root /etc/cron.d/${fileName}
+     sudo chmod 644 /etc/cron.d/${fileName}
+}
+
+function BC_setBmiPropertyFile()
+{
+     if [ -f ${BMI_PROPERTIES_FILE_IN_JBOSS} ]; then
+        BMI_PROPERTIES_FILE=${BMI_PROPERTIES_FILE_IN_JBOSS}
+     else
+        BMI_PROPERTIES_FILE=${BMI_PROPERTIES_FILE_IN_HOME}
+     fi
+}
+
+function BC_setBmiProperty()
+{
+    local l_propertyName="${1:?'[ERROR] BC_setBmiProperty: argument property name required!'}"
+    local l_propertyValue="${2:?'[ERROR] BC_setBmiProperty: argument property value required!'}"
+   
+    if BC_isInstalled; then
+       Conf_setPropertyToFile "${BMI_PROPERTIES_FILE_IN_JBOSS}" "${l_propertyName}" "${l_propertyValue}"
+    fi
+    Conf_setPropertyToFile "${BMI_PROPERTIES_FILE_IN_HOME}" "${l_propertyName}" "${l_propertyValue}"
+}
+
+function BC_getBmiProperty()
+{
+    local l_propertyName="${1:?'[ERROR] BC_getBmiProperty: argument property name required!'}"
+    local l_retVar="${2:?'[ERROR] BC_getBmiProperty: argument return variable name required!'}"
+    BC_setBmiPropertyFile
+    if [ ! -f ${BMI_PROPERTIES_FILE} ]; then
+        Log_debug "Can not get property '${l_propertyName}': ${BMI_PROPERTIES_FILE} not exists."
+        return
+    fi
+    Conf_getPropertyFromFile "${BMI_PROPERTIES_FILE}" "${l_propertyName}" "${l_retVar}"
+}
+
+function BC_checkHosts()
+{
+    local l_host="${1:?'[ERROR] BC_checkHosts: argument hostname required!'}"
+    log "Check host configuration '$l_host' ..."
+    ! grep '^ *[1-9]' /etc/hosts | grep ${l_host} && Log_warn "'$l_host' is not setup in /etc/hosts. It is required!"
+}
+
+function BC_copyDBScripts()
+{
+     local l_file=${1:?'[ERROR] BC_copyDBScripts: argument input file name required!'}
+     local to_dir="${2:?'[ERROR] BC_copyDBScripts: argument to dir name required!'}"
+     local l_db_desc=$3
+
+     if [ ! -d "${l_file}" ]; then
+        local file
+        for file in $l_file
+        do
+            if [ -e "$file" ]; then
+               break
+            else
+               return
+            fi
+        done
+     fi
+
+     [ "$l_db_desc" = "" ] && l_db_desc="DB_DESC"	
+     DB_copyDesc $l_db_desc TMP_DB_DESC_1
+     
+     local l_db_script_home
+     BC_getDBScriptHome "TMP_DB_DESC_1" "l_db_script_home"
+	
+     if [ "`echo ${l_db_script_home} | grep .bmi_scripts`" != "" ]; then
+        echo "Copy dbscripts file to ${TMP_DB_DESC_1[1]}:${l_db_script_home}/${to_dir}"
+        if CM_isLocalAddress ${TMP_DB_DESC_1[1]}; then
+            sudo mkdir -p ${l_db_script_home}/${to_dir}
+            sudo cp -r -f ${l_file} ${l_db_script_home}/${to_dir}
+            sudo chmod -R uo+r ${l_db_script_home}
+        else
+            $SSHPASS -p ${TMP_DB_DESC_1[6]} ssh -l ${TMP_DB_DESC_1[5]} ${TMP_DB_DESC_1[1]} "mkdir -p ${l_db_script_home}/${to_dir}"
+            $SSHPASS -p ${TMP_DB_DESC_1[6]} scp -r ${l_file} ${TMP_DB_DESC_1[5]}@${TMP_DB_DESC_1[1]}:${l_db_script_home}/${to_dir}
+        fi
+        return 0
+     fi
+
+     unset TMP_DB_DESC_1
+     return 1
+}
+
+function BC_getDBScriptHome()
+{
+     local l_db_desc="${1:?'[ERROR] BC_getDBScriptHome: argument db_desc required!'}"
+     local l_retVar="${2:?'[ERROR] BC_getDBScriptHome: argument retVar name required!'}"
+
+     DB_copyDesc $l_db_desc "TMP_DB_DESC_0"
+
+     local l_script_home="${DB_DEFAULT_SCRIPT_HOME}"
+
+     if ! CM_isLocalAddress ${TMP_DB_DESC_0[1]} || [ "${TMP_DB_DESC_0[0]}" = "oracle" ]; then
+          local os_home
+          DB_getOSUserHome "TMP_DB_DESC_0" "os_home"
+          l_script_home="${os_home}/.bmi_scripts"
+     fi
+     
+     unset TMP_DB_DESC_0
+     eval "$l_retVar=\"${l_script_home}\""
+}
+
+function BC_runSqlFile()
+{
+     local l_db_desc="${1:?'[ERROR] BC_runSqlFile: argument db_desc required!'}"
+     local l_file="${2:?'[ERROR] BC_runSqlFile: argument input file name required!'}"
+     local l_quietFlag=$3
+
+     DB_copyDesc $l_db_desc "TMP_DB_DESC"
+
+     local l_db_script_home
+     BC_getDBScriptHome "TMP_DB_DESC" "l_db_script_home"
+
+     if [ -z ${l_file##/*} ] && [ "${l_db_script_home}" = "${INSTALLER_DIR}" ]; then
+	     DB_runSqlFile "TMP_DB_DESC" "$l_file"
+     elif [ -z ${l_file##/*} ]; then
+         BC_copyDBScripts "$l_file" "others"
+         DB_runSqlFile "TMP_DB_DESC" "${l_db_script_home}/others/$(basename $l_file)"
+     else
+         DB_runSqlFile "TMP_DB_DESC" "${l_db_script_home}/$l_file" "${l_quietFlag}"
+     fi
+     local result=$?	
+     unset TMP_DB_DESC
+
+     return $result
+}
+
+function BC_getInstalledProductsFromDB()
+{
+    local l_retVar="${1:?'[ERROR] BC_getInstalledProductsFromDB: argument retvar required!'}"
+	local l_installedProducts
+	DB_runSql "DB_DESC" "select products from products_installed;" "l_installedProducts" true
+	eval "${l_retVar}=\"${l_installedProducts}\""
+}
+
+function BC_saveInstalledProductsToDB()
+{
+	local allInstalled
+	Setup_findAllInstalled "allInstalled"
+    CM_mergeArray "allInstalled" "${allInstalled}" "$1"
+	[ "${allInstalled}" = "" ] && return
+	local installedProductsInDB
+	BC_getInstalledProductsFromDB "installedProductsInDB"
+	if [ "${installedProductsInDB}" = "" ]; then
+	    DB_runSql "DB_DESC" "create table products_installed(products varchar(300));" "runsqltemp" true
+		DB_runSql "DB_DESC" "insert into products_installed values('${allInstalled}');" "runsqltemp"
+	else
+		DB_runSql "DB_DESC" "update products_installed set products='${allInstalled}';" "runsqltemp"
+	fi
+}
+
+function BC_isDBInstalled()
+{
+    local l_product="${1:?'[ERROR] BC_isDBInstalled: argument product name required!'}"
+    local installedProductsInDB
+	BC_getInstalledProductsFromDB "installedProductsInDB"
+    Log_debug "BC_isDBInstalled: ${installedProductsInDB} : ${l_product}"
+	if [ "${installedProductsInDB}" != "" ]; then
+	    CM_singleStr "${installedProductsInDB}" "${l_product}" && return 0
+	fi
+	return 1
+}

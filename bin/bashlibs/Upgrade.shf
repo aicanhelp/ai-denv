@@ -1,0 +1,267 @@
+#!/bin/sh
+#function: Upgrade_find
+#according to the current version and the package version to find the upgarde dir
+#usage: Upgrade_find scaneddir retVarName newVersion
+function Upgrade_find()
+{
+   local l_retVarName=${1:?'[ERROR]Upgrade_find: argument dir return variable name required!'}
+
+   local installedProducts
+   Setup_findAllInstalled "installedProducts"
+
+   declare -i index
+   index=0
+   local product
+   local l_temp_dir
+   for product in $installedProducts
+   do
+        local l_fromVersion
+        local l_toVersion
+
+        l_temp_dir=""
+
+        [ ! -d ${INSTALLER_DIR}/products/${product}/upgrade ] && continue
+
+        local dir
+        for dir in ${INSTALLER_DIR}/products/${product}/upgrade/*
+        do
+            #variables from_version are from file 'version.conf'
+            #Wildcards allowed in the values of from_version
+            if [ -d $dir ]; then
+                if [ ! -e $dir/$UPDATE_VERSION_CONF_FILE ]; then
+                    continue;
+                fi
+                Conf_getPropertyFromFile $dir/$UPDATE_VERSION_CONF_FILE "$UPDATE_VERSION_CONF_FROM" "l_fromVersion"
+                Conf_getPropertyFromFile $dir/$UPDATE_VERSION_CONF_FILE "$UPDATE_VERSION_CONF_TO" "l_toVersion"
+                if CM_strstr "$l_installedVersion" "$l_fromVersion" && CM_strstr "$l_new_version" "$l_toVersion"; then
+                    l_temp_dir="$dir"
+                    break;
+                fi
+            fi
+        done
+
+        if [ ! -z $l_temp_dir ]; then
+            eval "${l_retVarName}[${index}]=\"${l_temp_dir}\""
+            log "Find upgrade package for '${product}': from version '$l_fromVersion' to '$l_toVersion' in '$l_temp_dir'."
+            let index=index+1
+        fi
+    done
+
+    local packages
+    eval "packages=\${${l_retVarName}[*]}"
+    
+    if [ -z "${packages}" ]; then
+       log " "
+       log "No package found for the upgrade from  '$l_installedVersion' to '$l_new_version'."
+       log " "
+       exit 1
+    fi
+}
+
+function Upgrade_doCheck()
+{
+   if ! BC_isInstalled; then
+       log " "
+       log "No BMI installed in this machine."
+       log " "
+       exit 1
+   fi
+
+   BC_showInstalled
+
+   local l_installedVersion
+   BC_getInstalledVer l_installedVersion
+
+   local l_new_version
+   BC_getPackageVer l_new_version
+
+   local l_installedVersion_2=${l_installedVersion#*' '}
+   local l_new_version_2=${l_new_version#*' '}
+   if expr "$l_installedVersion_2" '>=' "$l_new_version_2" >& /dev/null; then
+      log " "
+      log "BMI can not be upgraded from version '$l_installedVersion' to '$l_new_version'."
+      log "The installed version is not lower than '$l_new_version'."
+      log " "
+      exit 0
+   fi
+
+   if ! CM_askYesOrNo "Are you sure you want to upgrade to version '$l_new_version'?" No $UPGRADE_CONFIRM; then
+        log "User aborts the operation."
+        log "exit."
+        exit 1
+   fi
+}
+
+function Upgrade_doBackupBeforeUpgrade()
+{
+    log " "
+    log "Backup the current installed ..."
+    #backup the old version
+    mkdir -p $BMI_BACKUP_DIR/update
+    local _l_backfile="$BMI_BACKUP_DIR/update/backup_by_upgrade.tar"
+    sudo rm -f ${_l_backfile}
+    if ! BAK_doBackup "${INSTALL_MODE_ALL}" "$_l_backfile"; then
+       log "Fail to backup the old version BMI!"
+       if ! CM_askYesOrNo "Would you want to continue?" No; then
+          log "User aborts the update."
+          log " "
+          exit 1
+       fi
+    fi
+    log "Finish backup the current installed."
+    log " "
+}
+
+function Upgrade_updateDBWith()
+{
+     local sqlFile=${1:?'[ERROR]Upgrade_setSqlFile: argument sql file name required!'}
+     UPDATE_SQL_FILE=${sqlFile}
+     log "Set update sql file: ${sqlFile}."
+}
+
+function Upgrade_doPreUpgrade()
+{
+    log "Prepare for upgrade ... "
+    local _l_upgrade_dir
+    for _l_upgrade_dir in ${ALL_UPGRADE_DIRS[*]}
+    do
+        local result
+        source $_l_upgrade_dir/$UPDATE_VERSION_CONF_FILE
+        source $_l_upgrade_dir/update.sh
+        
+        #the variable 'product_name' is defined in UPDATE_VERSION_CONF_FILE
+        if Setup_funcDefined "products_${product_name}_preUpgrade"; then
+            products_${product_name}_preUpgrade
+            result=$?
+            if ((l_result==0)); then
+               log "Preparation for Upgrade was done in $_l_upgrade_dir."
+            else
+               Log_err "Fail to prepare upgrade for $_l_upgrade_dir."
+               return 1
+            fi
+        fi
+    done
+    log "Finish preparation for upgrade."
+    Log_empty
+    return 0
+}
+
+function Upgrade_doUpdateDB()
+{
+    log "Running the database update sql script ..."
+    local _l_upgrade_dir
+    for _l_upgrade_dir in ${ALL_UPGRADE_DIRS[*]}
+    do
+        local result
+        source $_l_upgrade_dir/$UPDATE_VERSION_CONF_FILE
+        source $_l_upgrade_dir/update.sh
+
+        UPDATE_SQL_FILE=${DEFAULT_UPDATE_SQL_FILE}
+        Log_debug "Upgrade_doUpdateDB: ${_l_upgrade_dir}"
+        if Setup_funcDefined "products_${product_name}_updateDB"; then
+            products_${product_name}_updateDB
+        fi
+
+        if [ -f $_l_upgrade_dir/${UPDATE_SQL_FILE} ]; then
+            local dir_name="products/${product_name}/upgrade/$(basename ${_l_upgrade_dir})"
+            BC_copyDBScripts "$_l_upgrade_dir/*.sql" "${dir_name}"
+            BC_runSqlFile "DB_DESC" "${dir_name}/${UPDATE_SQL_FILE}"
+            result=$?
+        else
+            return 0
+        fi
+
+        if ((l_result!=0)); then
+            return 1
+        fi
+
+        log "Find and run patches for ${product_name} ..."
+        if ! Patch_doForUpgrade "${product_name}"; then
+            Log_warn "The '${product_name}' upgrade is completed without the latest patches."
+        fi
+    done
+    
+    log "Finish the upgrade of database."
+    Log_empty
+    return 0
+}
+
+function Upgrade_doPostUpgrade()
+{
+    log "Do post job for uprade ... "
+    local _l_upgrade_dir
+    for _l_upgrade_dir in ${ALL_UPGRADE_DIRS[*]}
+    do
+        local result
+        source $_l_upgrade_dir/$UPDATE_VERSION_CONF_FILE
+        source $_l_upgrade_dir/update.sh
+
+        if Setup_funcDefined "products_${product_name}_postUpgrade"; then
+            products_${product_name}_postUpgrade
+            result=$?
+            if ((l_result==0)); then
+               log "Upgrade was done in $_l_upgrade_dir."
+            else
+               Log_err "Fail to upgrade for $_l_upgrade_dir."
+               return 1
+            fi
+        fi
+    done
+    log "Finish all jobs of  upgrade."
+    Log_empty
+    return 0
+}
+
+function Upgrade_doUpgrade()
+{
+    local _l_mode=${1:?'[ERROR]Upgrade_doUpgrade: argument install mode required!'}
+
+    if [ "$_l_option" != "$INSTALL_MODE_DB" ]; then
+        ! Upgrade_doPreUpgrade && return 1
+        ! Setup_reInstallAll "com" && return 1
+    fi
+
+    if [ "$_l_option" != "$INSTALL_MODE_COM" ]; then
+        ! Upgrade_doUpdateDB && return 1
+    fi
+
+    if [ "$_l_option" != "$INSTALL_MODE_DB" ]; then
+       ! Upgrade_doPostUpgrade && return 1
+    fi
+		
+	if [ "$_l_option" = "$INSTALL_MODE_DB" ]; then
+		#if upgrade database only, need to set the db address
+		#in other case, 'Setup_reInstallAll' shall do this thing.
+        BC_setDBAddr
+    fi
+		
+    return 0
+}
+
+function Upgrade_start()
+{
+   local _l_mode=${1:?'[ERROR]Upgrade_start: argument install mode required!'}
+
+   Upgrade_doCheck
+
+   local l_fromVersion
+   BC_getInstalledVer "l_fromVersion"
+
+   Upgrade_find "ALL_UPGRADE_DIRS"
+
+   BC_getDBAddr
+   [ "$_l_option" != "$INSTALL_MODE_COM" ] && BC_validateDBAccessible
+   Upgrade_doBackupBeforeUpgrade
+
+   if ! Upgrade_doUpgrade "${_l_mode}"; then
+        Log_err "Upgrade is not complete!"
+        log " "
+        exit 1
+   fi
+
+   local l_toVersion
+   BC_getInstalledVer "l_toVersion"
+   log " "
+   log "The upgrade from '$l_fromVersion' to version '$l_toVersion' is completed."
+   BC_InstalledFinally
+}

@@ -1,0 +1,4 @@
+sudo /sbin/chkconfig tac_plus on
+sudo /sbin/chkconfig --add jboss
+[ -f /home/bmcs/bmi_home/tools/memdb/memdb.sh ] && sudo /home/bmcs/bmi_home/tools/memdb/memdb.sh install_service
+[ -f /home/bmcs/bmi_home/tools/naming/naming.sh ] && sudo /home/bmcs/bmi_home/tools/naming/naming.sh install_service

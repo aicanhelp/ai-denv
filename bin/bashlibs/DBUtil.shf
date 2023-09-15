@@ -1,0 +1,1008 @@
+#!/bin/sh
+#############################################################################################3
+#
+# DBUtil.shf
+# This script file defines many common functions about database
+#
+##############################################################################################
+GLOBAL_LOG_FILE=/dev/null
+
+function DB_updateDESC()
+{
+    [ "$DB_ADDR" = "" ] && DB_ADDR="localhost"
+    eval "DB_DESC=('$DB_TYPE' '$DB_ADDR' '$DB_USER' '$DB_PWD' '$DB_INSTANCE' '$DB_OS_USER' '$DB_OS_PWD')"
+    eval "DB_ADMIN_DESC=('$DB_TYPE' '$DB_ADDR' '$DB_ADMIN_USER' '$DB_ADMIN_PWD' '$DB_SYS_INSTANCE' '$DB_OS_USER' '$DB_OS_PWD')"
+    DB_copyDesc "DB_ADMIN_DESC" "DB_UNINST_DESC"
+}
+
+function DB_selectDBType()
+{
+    if [ "${DB_TYPE}" = "mysql" ]; then
+		DB_ADDR=${DB_MYSQL_ADDR} 
+		DB_ADMIN_USER=${DB_MYSQL_ADMIN_USER}
+		DB_ADMIN_PWD=${DB_MYSQL_ADMIN_PWD}
+		DB_USER=${DB_MYSQL_APP_USER}
+		DB_PWD=${DB_MYSQL_APP_PWD}
+		DB_INSTANCE=${DB_MYSQL_APP_DBNAME}
+		DB_SYS_INSTANCE=${DB_MYSQL_ADMIN_DBNAME}
+		DB_OS_USER=${DB_MYSQL_OS_USER}
+        DB_OS_PWD=${DB_MYSQL_OS_PWD}
+    fi
+
+    if [ "${DB_TYPE}" = "oracle" ]; then
+		DB_ADDR=${DB_ORACLE_ADDR}
+		DB_ADMIN_USER=${DB_ORACLE_ADMIN_USER}
+		DB_ADMIN_PWD=${DB_ORACLE_ADMIN_PWD}
+		DB_USER=${DB_ORACLE_APP_USER}
+		DB_PWD=${DB_ORACLE_APP_PWD}
+		DB_INSTANCE=${DB_ORACLE_APP_DBNAME}
+		DB_SYS_INSTANCE=${DB_ORACLE_ADMIN_DBNAME}
+		DB_OS_USER=${DB_ORACLE_OS_USER}
+        DB_OS_PWD=${DB_ORACLE_OS_PWD}
+    fi
+
+    DB_updateDESC
+}
+
+function DB_copyDesc()
+{
+    local l_input_arr=$1
+    local l_array_ret=$2
+
+    i=0
+    eval "count=\${#$l_input_arr[*]}"
+    while (( i < count ))
+    do
+      eval "$l_array_ret[$i]=\${$l_input_arr[$i]}"
+      let i=i+1
+    done
+}
+
+#function: DB_runSql
+#usage: DB_runSql db_desc sqlcommnd returnValue
+#example: DB_runSql 'DB_DESC' 'select * from dual;' retValue'
+#paremeters:
+#            1 -- db_desc array, such as DB_DESC
+#            2 -- sql command
+#            3 -- return variable name
+
+function DB_runSql()
+{
+    local l_db_desc="${1:?'[ERROR] DB_runSql: argument db_desc required!'}"
+    local l_sqlCommand=${2:?'[ERROR] DB_runSql: argument sql command required!'}
+    local l_retVar=${3:?'[ERROR] DB_runSql: argument return variable name required!'}
+    local l_quiet=$4
+
+    local l_db_desc_tmp=${l_db_desc}
+    DB_copyDesc $l_db_desc l_db_desc
+
+    local log_msg="Run ${l_db_desc[0]} Sql Script '${l_sqlCommand}' in database ${l_db_desc[4]} of ${l_db_desc[1]} by '${l_db_desc[2]}'"
+    [ "$l_quiet" = "" ] && log "$log_msg ... ..."
+    if [ "mysql" = "${l_db_desc[0]}" ]; then
+       DB_runMySQLSql "${l_db_desc_tmp}" "${l_sqlCommand}" "${l_retVar}" $l_quiet
+    elif [ "oracle" = "${l_db_desc[0]}" ]; then
+       DB_runOracleSql "${l_db_desc_tmp}" "${l_sqlCommand}" "${l_retVar}" $l_quiet
+    fi
+
+    local ret_val=$?
+
+    [ $ret_val = 0 ] && [ "$l_quiet" = "" ] && log "$log_msg successfully."
+    [ $ret_val != 0 ] && [ "$l_quiet" = "" ] && log "$log_msg unsuccessfully."
+    [ "$l_quiet" = "" ] && log " "
+    return $ret_val
+}
+
+#function: DB_runMySQLSql
+#usage: DB_runMySQLSql db_desc sqlcommnd returnValue
+#example: DB_runMySQLSql "DB_DESC" 'select * from dual;' retValue'
+#paremeters:
+#            1 -- Db_desc array, like DB_DESC
+#            2 -- sql command
+#            3 -- return variable name
+
+function DB_runMySQLSql()
+{
+    local l_db_desc="${1:?'[ERROR] DB_runMySQLSql: argument db_desc required!'}"
+    local l_sqlCommand=${2:?'[ERROR] DB_runMySQLSql: argument sql command required!'}
+    local l_retVar=${3:?'[ERROR] DB_runSql: argument return variable name required!'}
+    local l_quiet=$4
+
+    # ! DB_isDbAccessible "l_db_desc" quiet && return 1
+    DB_copyDesc $l_db_desc l_db_desc
+
+    local l_db_conn="-u ${l_db_desc[2]}"
+    [ "`echo ${l_db_desc[3]} | sed 's/ //'`" != "" ] &&  l_db_conn="$l_db_conn -p${l_db_desc[3]}"
+    l_db_conn="$l_db_conn ${l_db_desc[4]}"
+
+
+    if ! CM_isLocalAddress ${l_db_desc[1]}; then
+        l_sql_result=`$SSHPASS -p ${l_db_desc[6]} ssh -l ${l_db_desc[5]} ${l_db_desc[1]} "mysql $l_db_conn -e \"set names UTF8;${l_sqlCommand}\" -s 2>&1" 2>>/dev/null`
+    else
+       ! CM_isLocalAddress ${l_db_desc[1]} && l_db_conn="-h ${l_db_desc[1]} $l_db_conn"
+       l_sql_result=`mysql $l_db_conn -e "set names UTF8;${l_sqlCommand}" -s 2>&1`
+    fi
+    
+    local l_num_found=`echo "$l_sql_result" | egrep -c 'ERROR'`
+
+    if [ "$l_num_found" != "0" ] && ([ "$l_quiet" = "" ] || Log_isDebug); then
+        echo
+        echo "ERROR:DB_runMySQLSql(), script: ${l_sqlCommand}" | tee -a $GLOBAL_LOG_FILE
+        echo "$l_sql_result" 2>&1 | tee -a ${SQL_LOG}
+        echo
+        return 1
+    fi
+
+    [ "$l_num_found" = "0" ] && eval "$l_retVar=\"$l_sql_result\""
+
+    return 0
+}
+
+function DB_checkOracleCmd()
+{
+    local l_ora_cmd="${1:?'[ERROR] DB_checkOracleCmd: argument oracle cmd required!'}"
+    local l_retVar=${2:?'[ERROR] DB_checkOracleCmd: argument return variable required!'}
+
+    l_oraCmd="sudo su oracle -c "
+    if ! sudo su oracle -c "which $l_ora_cmd" >>/dev/null 2>&1; then
+        log "ERROR: Could not find oracle command $l_ora_cmd!"
+        return 1
+    fi
+    eval "$l_retVar=\"$l_oraCmd\""
+    return 0
+}
+
+function DB_isSudoAccess()
+{
+    local l_db_desc="${1:?'[ERROR] DB_isSudoAccess: argument db_desc required!'}"
+    
+    DB_copyDesc $l_db_desc l_db_desc
+
+    if [ "mysql" = "${l_db_desc[0]}" ]; then
+       which mysql >>/dev/null 2>&1 && return 1
+    elif [ "oracle" = "${l_db_desc[0]}" ]; then
+       which sqlplus >>/dev/null 2>&1 && return 1
+    fi
+
+    return 0
+}
+
+function DB_getOSUserHome()
+{
+    local l_db_desc="${1:?'[ERROR] DB_getOSUserHome: argument db_desc required!'}"
+    local l_retVar="${2:?'[ERROR] DB_getOSUserHome: argument retVar name required!'}"
+    DB_copyDesc $l_db_desc l_db_desc
+
+    local l_user_home
+    if CM_isLocalAddress ${l_db_desc[1]}; then
+       l_user_home=`sudo su ${l_db_desc[5]} -c "echo \\\$HOME"`
+    else
+       l_user_home=`$SSHPASS -p ${l_db_desc[6]} ssh -l ${l_db_desc[5]} ${l_db_desc[1]} "echo \\\$HOME" 2>/dev/null`
+    fi
+    eval "$l_retVar=\"${l_user_home}\""
+}
+
+#function: DB_runOracleSql
+#usage: DB_runOracleSql db_desc sqlcommnd returnValue
+#example: DB_runOracleSql 'DB_DESC' 'select * from dual;' retValue'
+#paremeters:
+#            1 -- Db_desc array, like DB_DESC
+#            2 -- sql command
+#            3 -- return variable name
+function DB_runOracleSql()
+{
+    local l_db_desc="${1:?'[ERROR] DB_runOracleSql: argument db_desc required!'}"
+    local l_sqlCommand=${2:?'[ERROR] DB_runOracleSql: argument sql command required!'}
+    local l_retVar=${3:?'[ERROR] DB_runOracleSql: argument return variable required!'}
+    local l_quiet=$4
+
+    #! DB_isDbAccessible "l_db_desc" quiet && return 1
+
+    DB_copyDesc $l_db_desc l_db_desc
+
+    local sqlplusCmd
+    
+    local oracleConnection="${l_db_desc[2]}/${l_db_desc[3]}"
+    
+    Log_debug "Run sql command: $l_sqlCommand"
+    local l_sql_result
+    if ! CM_isLocalAddress ${l_db_desc[1]}; then
+ 		l_sql_result=`$SSHPASS -p ${l_db_desc[6]} ssh -l ${l_db_desc[5]} ${l_db_desc[1]} 2>/dev/null <<EOF
+sqlplus -silent $oracleConnection
+set pagesize 0 feedback off verify off heading off echo off
+$l_sqlCommand
+quit
+exit
+EOF`
+
+    else
+        ! DB_checkOracleCmd "sqlplus" "sqlplusCmd" && return 1
+    	l_sql_result=`$sqlplusCmd "sqlplus -silent  $oracleConnection <<EOF
+set pagesize 0 feedback off verify off heading off echo off
+$l_sqlCommand
+exit;
+EOF"`
+    fi
+    local l_num_found=`echo "$l_sql_result" | egrep -c -i 'error'`
+
+    if [ "$l_num_found" != "0" ] && ([ "$l_quiet" = "" ] || Log_isDebug); then
+        echo
+        echo "ERROR: DB_runOracleSql(),script:${l_sqlCommand}" | tee -a $GLOBAL_LOG_FILE
+        echo "$l_sql_result" 2>&1 | tee -a ${SQL_LOG}
+        echo
+        return 1
+    fi
+
+    [ "$l_num_found" = "0" ] && eval "$l_retVar=\"$l_sql_result\""
+
+    return 0
+}
+
+#function: DB_runSqlFile
+#usage: DB_runSql db_desc sqlfile [quietFlag]
+#example: DB_runSqlFile ' ' 'sqlFile.sql' quiet
+#paremeters:
+#            1 -- Db_desc array, like DB_DESC
+#            2 -- sql file
+#            3 -- quiet flag [quiet|verbose]
+function DB_runSqlFile()
+{
+    local l_db_desc="${1:?'[ERROR] DB_runSqlFile: argument db_desc required!'}"
+    local l_sqlFile=${2:?'[ERROR] DB_runSqlFile: argument sql file required!'}
+    local l_quietFlag=$3
+
+    DB_copyDesc $l_db_desc l_db_desc
+
+    local log_msg="Run ${l_db_desc[0]} Sql Script File '${l_sqlFile}'"
+    echo
+    log "$log_msg ... ..."
+    if [ "mysql" = "${l_db_desc[0]}" ]; then
+       DB_runMySQLSqlFile $*
+    elif [ "oracle" = "${l_db_desc[0]}" ]; then
+       DB_runOracleSqlFile $*
+    else
+       Log_err "$log_msg unsuccessfully: invalid DB description"
+       return 1
+    fi
+
+    local ret_val=$?
+    [ $ret_val = 0 ] && log "$log_msg successfully."
+    [ $ret_val != 0 ] && Log_err "$log_msg unsuccessfully."
+
+    return $ret_val
+}
+
+#function: DB_runMySQLSqlFile
+#usage: DB_runMySQLSqlFile db_desc sqlFile [quiet|verbose]
+#example: DB_runMySQLSql file quiet
+#paremeters:
+#            1 -- Db_desc array, like DB_DESC
+#            2 -- sql file
+#            3 -- quiet flag
+function DB_runMySQLSqlFile()
+{
+    local l_db_desc="${1:?'[ERROR] DB_runMySQLSqlFile: argument db_desc required!'}"
+    local l_sqlFile=${2:?'[ERROR] DB_runMySQLSqlFile: argument sql file required!'}
+    local l_quietFlag=$3
+
+    #! DB_isDbAccessible "${l_db_desc}" quiet && return 1
+
+    DB_copyDesc $l_db_desc l_db_desc
+
+    if [ "mysql" != "${l_db_desc[0]}" ]; then
+       log " "
+       Log_err "Function DB_runMySQLSqlFile requires 'mysql' DB_TYPE."
+       log " "
+       return 1
+    fi
+
+    local l_db_conn="-u ${l_db_desc[2]}"
+    [ "`echo ${l_db_desc[3]} | sed 's/ //'`" != "" ] &&  l_db_conn="$l_db_conn -p${l_db_desc[3]}"
+    l_db_conn="$l_db_conn ${l_db_desc[4]}"
+
+    rm -f run_sql_script.log	
+	local _l_cur_dir="`pwd`"
+	local _l_sql_dir="`dirname ${l_sqlFile}`"
+    if ! CM_isLocalAddress ${l_db_desc[1]}; then
+    	($SSHPASS -p ${l_db_desc[6]} ssh -l ${l_db_desc[5]} ${l_db_desc[1]} <<EOF
+! test -f ${l_sqlFile} && echo "file ${l_sqlFile} does not exist at ${l_db_desc[1]}." && exit
+cd ${_l_sql_dir}
+mysql $l_db_conn < ${l_sqlFile}
+exit
+EOF
+) 2>&1 >> run_sql_script.log
+    else
+        if [ ! -e ${l_sqlFile} ]; then
+            Log_err "Sql file '${l_sqlFile}' does not exist!"
+            return 1
+        fi
+    	cd ${_l_sql_dir}
+    	mysql $l_db_conn < ${l_sqlFile} >>run_sql_script.log 2>&1
+    fi
+    local l_sql_result=$?
+    egrep -i 'ERROR' run_sql_script.log && l_sql_result=1
+    ((l_sql_result==1)) && Log_err "`egrep -i 'ERROR' run_sql_script.log` "
+    log "See the sql detail log  in${SQL_LOG}."
+    cat run_sql_script.log >>${SQL_LOG}
+    rm -f run_sql_script.log
+
+    cd ${_l_cur_dir}
+    echo
+
+    return $l_sql_result
+}
+
+#function: DB_runOracleSqlFile
+#usage: DB_runOracleSqlFile db_desc sqlFile [quiet|verbose]
+#example: DB_runOracleSqlFile file [quiet]
+#paremeters:
+#            1 -- Db_desc array, like DB_DESC
+#            2 -- sql file
+#            3 -- quiet flag
+function DB_runOracleSqlFile()
+{
+    local l_db_desc="${1:?'[ERROR] DB_runOracleSqlFile : argument db_desc required!'}"
+    local l_sqlFile=${2:?'[ERROR] DB_runOracleSqlFile : argument sql file required!'}
+    local l_quiet_flag=$3
+
+    #! DB_isDbAccessible "${l_db_desc}" quiet && return 1
+    DB_copyDesc $l_db_desc l_db_desc
+
+    if [ -z $l_quiet_flag ]; then
+       #local l_sqlplus_silent="-silent "
+       local l_sqlplus_term="on"
+    fi
+
+    if [[ $l_quiet_flag = quiet ]]; then
+       local l_sqlplus_silent="-silent "
+       local l_sqlplus_term="off"
+    fi
+
+    if [[ $l_quiet_flag = debug ]]; then
+       local l_sqlplus_term="on"
+    fi
+
+    rm -f run_sql_script.log
+    local _l_sql_dir="`dirname ${l_sqlFile}`"
+
+    local oracleConnection="${l_db_desc[2]}/${l_db_desc[3]}"
+    rm -f run_sql_script.log
+    if ! CM_isLocalAddress ${l_db_desc[1]}; then
+	     ($SSHPASS -p ${l_db_desc[6]} ssh -l ${l_db_desc[5]} ${l_db_desc[1]} 2>/dev/null <<EOF
+! test -f ${l_sqlFile} && echo "file ${l_sqlFile} does not exist at ${l_db_desc[1]}." && exit
+cd ${_l_sql_dir}
+sqlplus $l_sqlplus_silent ${oracleConnection}
+set pagesize 0 feedback on verify off TERM $l_sqlplus_term heading off echo on
+@@${l_sqlFile}
+purge recyclebin
+set TERM on
+exit
+EOF
+) 2>&1 > run_sql_script.log
+
+    else
+        if ! sudo test -f ${l_sqlFile}; then
+			Log_err "Sql file '${l_sqlFile}' does not exist!"
+			return 1
+		fi
+        ! DB_checkOracleCmd "sqlplus" "sqlplusCmd" && return 1
+    	$sqlplusCmd "cd ${_l_sql_dir} && sqlplus $l_sqlplus_silent $oracleConnection <<EOF
+set pagesize 0 feedback on verify off TERM $l_sqlplus_term heading off echo on
+@@${l_sqlFile}
+purge recyclebin
+set TERM on
+exit
+EOF" 2>&1 > run_sql_script.log
+    fi
+
+    egrep '^ERROR|^ORA|^SP|<logon>' run_sql_script.log && l_sql_result=1
+    Log_info "See the sql detail log  in ${SQL_LOG}."
+    cat run_sql_script.log >>${SQL_LOG}
+    rm -f run_sql_script.log
+
+    return $l_sql_result
+}
+
+#function: DB_exportDbData
+#usage: DB_exportDbData db_desc file [tables]
+#example: DB_exportDbData "DB_DESC" 'data.dmp' '(assets,package)'
+#paremeters:
+#            1 -- Db_desc array, like DB_DESC
+#            2-- dump file
+#            3 -- table list (if empty, all will be exported)
+function DB_exportDbData()
+{
+    local l_db_desc="${1:?'[ERROR] DB_exportDbData: argument db_desc required!'}"
+    local _l_dump_file=${2:?'[ERROR] DB_exportDbData: argument dumpFile required!'}
+    DB_copyDesc $l_db_desc l_db_desc
+
+    if [ "mysql" = "${l_db_desc[0]}" ]; then
+       DB_expMySQLDbData "$@"
+    elif [ "oracle" = "${l_db_desc[0]}" ]; then
+       DB_expOracleDbData "$@"
+    fi
+
+    local ret_val=$?
+    local log_msg="Export ${l_db_desc[0]} data from database '${l_db_desc[4]}' to file ${_l_dump_file}"
+    log " "
+    [ $ret_val = 0 ] && log "$log_msg successfully."
+    [ $ret_val != 0 ] && log "$log_msg unsuccessfully."
+    [ ! -z "$_l_table_list" ] && log "Tables list exported: $_l_table_list"
+    log " "
+    return $ret_val
+}
+
+#function: DB_importDbData
+#usage: DB_importDbData db_desc file [tables]
+#example: DB_importDbData "DB_DESC" 'data.dmp' '(assets,package)'
+#paremeters:
+#            1 -- Db_desc array, like DB_DESC
+#            2-- dump file
+#            3 -- table list (if empty, all will be exported)
+function DB_importDbData()
+{
+    local l_db_desc="${1:?'[ERROR] DB_importDbData: argument db_desc required!'}"
+    local _l_dump_file=${2:?'[ERROR] DB_exportDbData: argument dumpFile required!'}
+    local _l_table_list=${3}
+    DB_copyDesc $l_db_desc l_db_desc
+
+    if [ "mysql" = "${l_db_desc[0]}" ]; then
+       DB_impMySQLDbData "$@"
+    elif [ "oracle" = "${l_db_desc[0]}" ]; then
+       DB_impOracleDbData "$@"
+    fi
+
+    local ret_val=$?
+    local log_msg="Import ${l_db_desc[0]} data into database '${l_db_desc[4]}' from file ${_l_dump_file}"
+    log " "
+    [ $ret_val = 0 ] && log "$log_msg successfully."
+    [ $ret_val != 0 ] && log "$log_msg unsuccessfully."
+    [ !-z $_l_table_list ] && log "Tables list imported: $_l_table_list"
+    log " "
+    return $ret_val
+}
+
+#function: DB_expMySQLDbData
+#usage: DB_expMySQLDbData db_desc file [tables]
+#example: DB_expMySQLDbData "DB_DESC" 'data.dmp' '(assets,package)'
+#paremeters:
+#            1 -- Db_desc array, like DB_DESC
+#            2-- dump file
+#            3 -- table list (if empty, all will be exported)
+function DB_expMySQLDbData()
+{
+    local l_db_desc="${1:?'[ERROR] DB_expMySQLDbData: argument db_desc required!'}"
+    local _l_dump_file=${2:?'[ERROR] DB_expMySQLDbData: argument dumpFile required!'}
+    local _l_where=""
+    local _l_ignore_tables=""
+    local _l_tables=""
+
+    #! DB_isDbAccessible "${l_db_desc}" quiet && return 1
+
+    for option in "$@"
+    do
+       local flag=`expr substr "${option}" 1 2`
+       case $flag in
+       -W) _l_where=${option#-W};;
+       -E) _l_ignore_tables=${option#-E};;
+       -I) _l_tables=${option#-I};;
+       esac
+    done
+
+    log "Exp Mysql dabatabase ..."
+
+    if [ "$_l_tables" != "" ]; then
+       _l_tables=`echo $_l_tables | sed -e 's/,/ /g'`
+       log "Including tables: ${_l_tables}"
+    fi 
+    if [ "$_l_ignore_tables" != "" ]; then
+       _l_ignore_tables=`echo $_l_ignore_tables | sed -e 's/,/ --ignore-table /g'`
+       _l_ignore_tables="--ignore-table ${_l_ignore_tables}"
+       log "${_l_ignore_tables}"
+    fi
+    if [ "$_l_where" != "" ]; then
+       _l_where="-w\"$_l_where\""
+       log "${_l_where}"
+    fi 
+    local l_os_user_home
+    DB_getOSUserHome "$l_db_desc" "l_os_user_home"
+    DB_copyDesc $l_db_desc l_db_desc
+
+    local l_db_conn="-u ${l_db_desc[2]}"
+	[ "`echo ${l_db_desc[3]} | sed 's/ //'`" != "" ] &&  l_db_conn="$l_db_conn -p${l_db_desc[3]}"
+	l_db_conn="$l_db_conn ${l_db_desc[4]}"
+    local l_mysqldump_cmd="mysqldump --routines $l_db_conn ${_l_table_list} ${_l_tables} ${_l_ignore_tables} ${_l_where} 2>&1"
+    Log_debug "$l_mysqldump_cmd"
+    local errCount="0"
+    if ! CM_isLocalAddress ${l_db_desc[1]}; then
+        local l_sshpass_cmd="$SSHPASS -p ${l_db_desc[6]} ssh -l ${l_db_desc[5]} ${l_db_desc[1]}"
+        local _this_dump_file="${l_os_user_home}/.bmi_installer/$(basename ${_l_dump_file})"
+        local l_result=`${l_sshpass_cmd} 2>/dev/null <<EOF
+mkdir -p ${l_os_user_home}/.bmi_installer
+rm -f bmi_dump.log
+rm -f  ${_this_dump_file}
+${l_mysqldump_cmd}>${_this_dump_file} 2>bmi_dump.log
+cat bmi_dump.log
+rm -f bmi_dump.log
+exit
+EOF`
+        echo "${l_result}" | tee -a $GLOBAL_LOG_FILE
+        errCount=`echo "${l_result}" | grep -c -i 'error'`
+        if [ "$errCount" = "0" ]; then
+        	$SSHPASS -p ${l_db_desc[6]} scp ${l_db_desc[5]}@${l_db_desc[1]}:${_this_dump_file} ${_l_dump_file}
+        	${l_sshpass_cmd} "rm -f  ${_this_dump_file}"
+        else
+            Log_err "`echo "${l_result}" | grep -i 'error'`"
+	    fi
+    else
+        rm -f bmi_dump.log
+        eval "${l_mysqldump_cmd}>${_l_dump_file} 2>bmi_dump.log"
+        errCount=`grep -c -i 'error' bmi_dump.log`
+		[ "$errCount" != "0" ] && Log_err "`grep -i 'error' bmi_dump.log`"
+    fi
+    
+    [ "$errCount" != "0" ] && return 1
+    return 0
+}
+
+#function: DB_impMySQLDbData
+#usage: DB_impMySQLDbData db_desc_str file
+#example: DB_impMySQLDbData "oracle:localhost:bmi:bmi:bmi" 'data.dmp'
+#paremeters:
+#            1 -- Db_desc array, like DB_DESC
+#            2-- dump file
+function DB_impMySQLDbData()
+{
+    local l_db_desc="${1:?'[ERROR] DB_impMySQLDbData: argument db_desc required!'}"
+    local _l_dump_file=${2:?'[ERROR] DB_impMySQLDbData: argument dumpFile required!'}
+
+    DB_runSqlFile "$l_db_desc" ${_l_dump_file}
+
+    return $?
+}
+
+#function: DB_expOracleDbData
+#usage: DB_expOracleDbData db_desc file [tables]
+#example: DB_expOracleDbData "oracle:localhost:bmi:bmi:bmi" 'data.dmp' '(assets,package)'
+#paremeters:
+#            1 -- Db_desc array, like DB_DESC
+#            2-- dump file
+#            3 -- table list (if empty, all will be exported)
+function DB_expOracleDbData()
+{
+    local l_db_desc="${1:?'[ERROR] DB_expOracleDbData: argument db_desc required!'}"
+    local _l_dump_file=${2:?'[ERROR] DB_exportDbData: argument dumpFile required!'}
+    local _l_table_list=${3:+"tables=$3"}
+
+    #! DB_isDbAccessible "${l_db_desc}" quiet && return 1
+
+    ! expr "${_l_table_list}" : "-I" > /dev/null && _l_table_list=""
+    _l_table_list="`echo ${_l_table_list} | sed 's/-I//'`"
+    local l_os_user_home
+	DB_getOSUserHome "$l_db_desc" "l_os_user_home"
+    DB_copyDesc $l_db_desc l_db_desc
+	
+	local _this_dump_file="${l_os_user_home}/.bmi_installer/$(basename ${_l_dump_file})"
+	local oracleConnection="${l_db_desc[2]}/${l_db_desc[3]}"
+    ! CM_isLocalAddress ${l_db_desc[1]} && oracleConnection="${oracleConnection}@${l_db_desc[1]}:1521/${l_db_desc[4]}"
+	local l_exp_cmd="exp  ${oracleConnection} owner=${l_db_desc[2]} file=${_this_dump_file} ${_l_table_list}"
+	local l_local_dir="$(dirname ${_l_dump_file})"
+
+    log " "
+	log "Exporting data to file: $_l_dump_file ......."
+	CM_makeDir "${l_local_dir}"
+	local errCount="0"
+    if ! CM_isLocalAddress ${l_db_desc[1]}; then
+       local l_sshpass_cmd="$SSHPASS -p ${l_db_desc[6]} ssh -l ${l_db_desc[5]} ${l_db_desc[1]}"
+       local l_result=`${l_sshpass_cmd} 2>/dev/null <<EOF
+mkdir -p ${l_os_user_home}/.bmi_installer
+rm -f  ${_this_dump_file}
+rm -f bmi_dump.log
+${l_exp_cmd} 2>bmi_dump.log
+egrep -i '^ERROR|^ORA|^SP|<logon>' bmi_dump.log
+cat bmi_dump.log
+rm -f bmi_dump.log 
+! test -f ${_this_dump_file} && echo "ERROR: dump oracle data"
+exit
+EOF`
+       Log_isDebug && echo "$l_result" | tee -a $GLOBAL_LOG_FILE
+       errCount=`echo "${l_result}" | grep -c -i 'error'`
+       if [ "$errCount" = "0" ]; then
+           $SSHPASS -p ${l_db_desc[6]} scp ${l_db_desc[5]}@${l_db_desc[1]}:${_this_dump_file} ${_l_dump_file}
+           ${l_sshpass_cmd} "rm -f  ${_this_dump_file}"
+       else
+           Log_err "${l_result}"
+	   fi
+    else
+    	local sqlplusCmd
+    	! DB_checkOracleCmd "exp" "sqlplusCmd" && return 1
+    	${sqlplusCmd} "mkdir -p ${l_os_user_home}/.bmi_installer"
+        local result=`${sqlplusCmd} "${l_exp_cmd}" 2>&1`
+		Log_isDebug && echo "$l_result" | tee -a $GLOBAL_LOG_FILE
+		errCount=`echo "$l_result" | egrep -c -i '^ERROR|^ORA|^SP|<logon>'`
+		if [ "$errCount" = "0" ]; then
+        	CM_cpFile "${_this_dump_file}" "${_l_dump_file}" -f
+        	sudo rm -f "${_this_dump_file}"
+        else
+           Log_err "`echo "${l_result}" | grep -i '^ERROR|^ORA|^SP|<logon>'`"
+	    fi
+    fi
+    [ "$errCount" != "0" ] && return 1
+    return 0
+}
+
+#function: DB_impOracleDbData
+#usage: DB_impOracleDbData db_desc file [tables]
+#example: DB_impOracleDbData "oracle:localhost:bmi:bmi:bmi" 'data.dmp' '(assets,package)'
+#paremeters:
+#            1 -- Db_desc array, like DB_DESC
+#            2-- dump file
+#            3 -- table list (if empty, all will be exported)
+function DB_impOracleDbData()
+{
+    local l_db_desc="${1:?'[ERROR] DB_impOracleDbData: argument db_desc required!'}"
+    local _l_dump_file=${2:?'[ERROR] DB_impOracleDbData: argument dumpFile required!'}
+    local _l_table_list=${3:+"tables=($3)"}
+
+	#! DB_isDbAccessible "${l_db_desc}" quiet && return 1
+
+	local l_os_user_home
+	DB_getOSUserHome "${l_db_desc}" "l_os_user_home"
+    DB_copyDesc $l_db_desc l_db_desc
+
+	local _this_dump_file="${l_os_user_home}/.bmi_installer/$(basename ${_l_dump_file})"
+	local oracleConnection="${l_db_desc[2]}/${l_db_desc[3]}"
+    ! CM_isLocalAddress ${l_db_desc[1]} && oracleConnection="${oracleConnection}@${l_db_desc[1]}:1521/${l_db_desc[4]}"
+	local l_imp_cmd="imp  ${oracleConnection} file=${_this_dump_file} ${_l_table_list} ignore='Y'"
+	
+    log " "
+	log "Importing data from file: $_l_dump_file ......."
+	local errCount="0"
+	local l_result
+    if ! CM_isLocalAddress ${l_db_desc[1]}; then
+       local l_sshpass_cmd="$SSHPASS -p ${l_db_desc[6]} ssh -l ${l_db_desc[5]} ${l_db_desc[1]}"
+       ${l_sshpass_cmd} "mkdir -p ${l_os_user_home}/.bmi_installer"
+       $SSHPASS -p ${l_db_desc[6]} scp ${_l_dump_file} ${l_db_desc[5]}@${l_db_desc[1]}:${l_os_user_home}/.bmi_installer
+       l_result=`${l_sshpass_cmd} "${l_imp_cmd}" 2>&1` 
+	   ${l_sshpass_cmd} "rm -f  ${_this_dump_file}"
+    else
+    	local sqlplusCmd
+    	! DB_checkOracleCmd "imp" "sqlplusCmd" && return 1
+    	${sqlplusCmd} "mkdir -p ${l_os_user_home}/.bmi_installer"
+    	sudo cp ${_l_dump_file} "${l_os_user_home}/.bmi_installer"
+        l_result=`${sqlplusCmd} "${l_imp_cmd}" 2>&1` 
+    fi
+
+    Log_isDebug && echo "$l_result" | tee -a $GLOBAL_LOG_FILE
+	errCount=`echo "$l_result" | egrep -c -i '^ERROR|^ORA|^SP|<logon>'`
+	
+    if [ "$errCount" != "0" ]; then
+       Log_err "`echo "${l_result}" | egrep -i '^ERROR|^ORA|^SP|<logon>'`"
+      return 1
+    fi
+    return 0
+}
+
+function DB_isInstanceAccessible()
+{
+    local l_db_desc="${1:?'[ERROR] : argument db_desc required!'}"
+    DB_copyDesc $l_db_desc l_db_desc
+
+    if [ "mysql" = "${l_db_desc[0]}" ]; then
+       local db_instances
+       DB_runSql "show databases;" "db_instances"
+       [ "`echo ${db_instances} | grep ${l_db_desc[4]}`" != "" ] && return 0
+    elif [ "oracle" = "${l_db_desc[0]}" ]; then
+       return 0
+    fi
+
+    return 1
+}
+
+#function: DB_isDbAccessible
+#usage: DB_isDbAccessible db_desc [quiet]
+#example: DB_isDbAccessible "DB_DESC"[quiet]
+function DB_isDbAccessible()
+{
+    local l_db_desc="${1:?'[ERROR] DB_isDbAccessible: argument db_desc required!'}"
+    DB_copyDesc $l_db_desc l_db_desc
+
+    if [ "mysql" = "${l_db_desc[0]}" ]; then
+       if ! CM_isLocalAddress ${l_db_desc[1]}; then
+           DB_isRemoteMysqlDbAccessible $*
+       else
+           DB_isMysqlDbAccessible $*
+	   fi
+    elif [ "oracle" = "${l_db_desc[0]}" ]; then
+       if ! CM_isLocalAddress ${l_db_desc[1]}; then
+	       DB_isRemoteOracleDbAccessible $*
+       else
+           DB_isOracleDbAccessible $*
+       fi
+    fi
+
+    return $?
+}
+
+#function: DB_isMysqlDbAccessible
+#usage: DB_isMysqlDbAccessible db_desc
+#example: DB_isMysqlDbAccessible DB_STR [quiet]
+function DB_isMysqlDbAccessible()
+{
+    local l_db_desc="${1:?'[ERROR] DB_isMysqlDbAccessible: argument db_desc required!'}"
+    DB_copyDesc $l_db_desc l_db_desc
+    local l_db_conn="-h ${l_db_desc[1]} -u ${l_db_desc[2]}"
+
+    [ "`echo ${l_db_desc[3]} | sed 's/ //'`" != "" ] &&  l_db_conn="$l_db_conn -p${l_db_desc[3]}"
+
+    which mysqladmin > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+       log "ERROR: command 'mysqladmin' not found."
+
+       return 1
+    fi
+    mysqladmin $l_db_conn status
+    if [ $? != 0 ]; then
+       log "ERROR: fail to run 'mysqladmin' with parameter '$l_db_conn'."
+       return 1
+    fi
+
+    which mysql > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+       log "ERROR: command 'mysql' not found."
+       return 1
+    fi
+
+    mysql $l_db_conn -e '' -s
+
+    if [ $? -ne 0 ]; then
+       log "ERROR: command 'mysql' is not a command of MySQL Database server."
+       return 1
+    fi
+
+    if [ -z "`mysql $l_db_conn --version | grep ${DB_VERSION}.`" ]; then
+       log "ERROR: MySQL ${DB_VERSION} is required!"
+       return 1
+    fi
+
+    log " "
+    log "DB_INF:"
+    log "`mysql $l_db_conn --version`"
+    log "host: ${l_db_desc[1]}"
+    log " "
+
+    return 0
+}
+
+#function: DB_isRemoteMysqlDbAccessible
+#usage: DB_isRemoteMysqlDbAccessible db_desc
+#example: DB_isRemoteMysqlDbAccessible DB_STR [quiet]
+function DB_isRemoteMysqlDbAccessible()
+{
+    local l_db_desc="${1:?'[ERROR] DB_isMysqlDbAccessible: argument db_desc required!'}"
+    DB_copyDesc $l_db_desc l_db_desc
+    local l_db_conn="-u ${l_db_desc[2]}"
+
+    if ! DB_checkOSAccount  ${l_db_desc[5]} ${l_db_desc[6]} ${l_db_desc[1]}; then
+       echo "Host ${l_db_desc[1]} can not be accessed by OS user ${l_db_desc[5]}: invalid password."
+       return 1
+    fi
+
+    [ "`echo ${l_db_desc[3]} | sed 's/ //'`" != "" ] &&  l_db_conn="$l_db_conn -p${l_db_desc[3]}"
+
+    local l_sshpass_cmd="$SSHPASS -p ${l_db_desc[6]} ssh -l ${l_db_desc[5]} ${l_db_desc[1]}"
+
+    ${l_sshpass_cmd} 2>/dev/null <<EOF
+mysqladmin ${l_db_conn} status
+a=\$?
+[ "\$a" != "0" ] && exit 1
+mysql ${l_db_conn} -e ''> /dev/null 2>&1
+a=\$?
+[ "\$a" != "0" ] && exit 2
+exit 0
+EOF
+    local l_result=$?
+    if [ "${l_result}" = "1" ]; then
+       log "ERROR: fail to run 'mysqladmin' with parameter at '${l_db_desc[1]}'."
+       return 1
+    fi
+
+    if [ "${l_result}" = "2" ]; then
+       log "ERROR: command 'mysql' is not a command of MySQL Database server at '${l_db_desc[1]}'."
+       return 1
+    fi
+
+    local l_mysql_version=`${l_sshpass_cmd} "mysql --version"`
+    if [ -z "`echo ${l_mysql_version} | grep ${DB_VERSION}`" ]; then
+       log "ERROR: MySQL ${DB_VERSION} is required!"
+       return 1
+    fi
+
+    log " "
+    log "DB_INF:"
+    log "${l_mysql_version}"
+    log "host: ${l_db_desc[1]}"
+    log " "
+
+    return 0
+}
+
+function DB_isRemoteOracleDbAccessible()
+{
+    local l_db_desc="${1:?'[ERROR] DB_isOracleDbAccessible: argument db_desc required!'}"
+    DB_copyDesc $l_db_desc l_db_desc
+
+    if ! DB_checkOSAccount  ${l_db_desc[5]} ${l_db_desc[6]} ${l_db_desc[1]}; then
+       echo "Host ${l_db_desc[1]} can not be accessed by OS user ${l_db_desc[5]}: invalid password."
+       return 1
+    fi
+
+    local _l_result=`$SSHPASS -p ${l_db_desc[6]} ssh -l ${l_db_desc[5]} ${l_db_desc[1]} 2>/dev/null << EOF
+sqlplus -silent ${l_db_desc[2]}/${l_db_desc[3]}
+show release
+quit
+exit
+EOF
+`
+    local l_num_found=`echo "${_l_result}" | egrep -c '^ERROR|^ORA|^SP|<logon>'`
+    echo "${_l_result}" >> $GLOBAL_LOG_FILE
+    if [ $l_num_found -ne 0 ]; then
+        echo "${_l_result}" | egrep '^ERROR|^ORA|^SP|<logon>'
+        log "ERROR: Database instance '${l_db_desc[4]}' at '${l_db_desc[1]}' is not accessible via sqlplus!"
+        return 1
+    fi
+
+    return 0
+}
+
+function DB_checkOSAccount()
+{
+     local l_username="${1:?'[ERROR] DB_checkOSAccount: argument username required!'}"
+     local l_pwd="${2:?'[ERROR] DB_checkOSAccount: argument password required!'}"
+     local l_host="${3:?'[ERROR] DB_checkOSAccount: argument host required!'}"
+     $SSHPASS -p ${l_pwd} ssh -l ${l_username} ${l_host} echo -n 2>/dev/null
+     return $?
+}
+
+#function: DB_isOracleDbAccessible
+#usage: DB_isOracleDbAccessible db_desc [quiet]
+#example: DB_isOracleDbAccessible DB_DESC [quiet]
+function DB_isOracleDbAccessible()
+{
+    local l_db_desc="${1:?'[ERROR] DB_isOracleDbAccessible: argument db_desc required!'}"
+    DB_copyDesc $l_db_desc l_db_desc
+
+    if [ -z $ORACLE_HOME ]; then
+        log "ERROR: The ORACLE_HOME environment variable is not defined!"
+        return 1
+    fi
+
+    local l_quiet=$2
+
+    local sqlplusCmd
+    ! DB_checkOracleCmd "tnsping" "sqlplusCmd" && return 1
+    local oracleConnection="${l_db_desc[2]}/${l_db_desc[3]}"
+
+    #echo $sqlplusCmd $oracleConnection
+    local _l_result=`$sqlplusCmd "sqlplus -silent ${oracleConnection} << EOF
+set pagesize 0 feedback off verify off heading off echo off
+spool 
+show release
+quit
+EOF"`
+    local l_num_found=`echo "$_l_result" | egrep -c '^ERROR|^ORA|^SP|<logon>'`
+    echo "${_l_result}" >> $GLOBAL_LOG_FILE
+    if [ $l_num_found -ne 0 ]; then
+        echo "$_l_result" | egrep '^ERROR|^ORA|^SP|<logon>'
+        log "ERROR: Database instance '${l_db_desc[4]}' at '${l_db_desc[1]}' is not accessible via sqlplus!"
+        return 1
+    fi
+
+    return 0
+}
+#function:getDataFromTable
+#usage: getDataFromTable dbcon fieldslist, fromWhere, retVarName
+#example: getDataFromTable "bmi/bmi 192.168.205.41 bmcs" "locationip version" datarow
+function DB_getRowsFromTable()
+{
+   local _l_db_desc=${1:?'[ERROR]DB_getRowsFromTable: argument db desc required!'}
+   local _l_fields=${2:?'[ERROR]DB_getRowsFromTable: argument fields name list required!'}
+   local _l_from_where=${3:?'[ERROR]DB_getRowsFromTable: argument fields name list required!'}
+   local _l_retArrayName=${4:?'[ERROR]DB_getRowsFromTable: argument return dataset variable name required!'}
+
+   local _l_sql_str="select"
+   for fieldName in $_l_fields
+   do
+      _l_sql_str="$_l_sql_str concat(':<',concat($fieldName,'>:')),"
+   done
+   _l_sql_str="$_l_sql_str';'"
+   _l_sql_str="$_l_sql_str $_l_from_where;"
+
+   local _l_retvalues
+   ! DB_runSql $_l_db_desc "$_l_sql_str" _l_retvalues && return 1
+
+   local _l_i=0
+   local _l_row
+   while [ ! -z "$_l_retvalues" ] && CM_strstr "$_l_retvalues" ";"
+   do
+      _l_row=${_l_retvalues%%";"*}
+      eval "$_l_retArrayName[$_l_i]=\"$_l_row\""
+      let _l_i+=1
+      _l_retvalues=${_l_retvalues#*";"}
+   done
+}
+
+#function: DB_getFieldsFromRow
+#usage: DB_getFieldsFromRow row retVar
+#example: DB_getFieldsFromRow "a,b,c," retvar
+function DB_getFieldsFromRow()
+{
+   local _l_row=${1:?'[ERROR]DB_getFieldsFromRow: argument row required!'}
+   local _l_retArrayName=${2:?'[ERROR]DB_getFieldsFromRow: argument return var name required!'}
+
+   local _l_i=0
+   local _l_field
+
+   while [ ! -z "$_l_row" ] && CM_strstr "$_l_row" ":<" && CM_strstr "$_l_row" ">:"
+   do
+      _l_field=${_l_row%%">:"*}
+      _l_field=${_l_field#*":<"}
+      eval "$_l_retArrayName[$_l_i]=\"$_l_field\""
+      let _l_i+=1
+      _l_row=${_l_row#*">:"}
+   done
+}
+
+#function: DB_isOracleUserConnected
+#judge whether there are oracle session on input user
+#usage: DB_isOracleUserConnected oracleUser connstr
+function DB_isOracleUserConnected()
+{
+   local _l_oracle_conn=${1:?'[ERROR]DB_isOracleUserConnected: argument oracle connection string required!'}
+   local _l_oracle_user=${2:?'[ERROR]DB_isOracleUserConnected: argument oracle user required!'}
+
+   local _l_retInfo
+   DB_runSql  $_l_oracle_conn "select sid,serial# from v\$session where username='$_l_oracle_user' and (status='INACTIVE' or status='ACTIVE');" _l_retInfo
+
+   _l_retInfo=${_l_retInfo##" "}
+   if [ -z "$_l_retInfo" ]; then
+      return 1
+   else
+      return 0
+   fi
+}
+
+#function: DB_killOracleSession
+#judge whether there are oracle session on input user
+#usage: DB_isOracleUserConnected oracleUser connstr
+function DB_killOracleSession()
+{
+   local _l_db_desc=${1:?'[ERROR]DB_isOracleUserConnected: argument oracle db desc required!'}
+   local _l_oracle_user=${2:?'[ERROR]DB_isOracleUserConnected: argument oracle user required!'}
+   local _l_retInfo
+   DB_runSql  "$_l_db_desc" "select sid,serial# from v\$session where username='$_l_oracle_user' and (status='INACTIVE' or status='ACTIVE');" _l_retInfo
+
+   local _l_sid
+   local _l_serial
+   local _l_i=0
+   local _l_temp_ret
+   if [ ! -z "_l_temp_ret" ]; then
+      for value in $_l_retInfo
+      do
+         if [ $_l_i = 0 ]; then
+            _l_sid=$value
+            _l_i=1
+         else
+            _l_serial=$value
+            _l_i=0
+            if DB_runSql  "$_l_db_desc" "ALTER SYSTEM KILL SESSION '$_l_sid,$_l_serial';" _l_temp_ret; then
+               log "kill oracle session 'sid:$_l_sid,serial:$_l_serial' successfully."
+            else
+               log "kill oracle session 'sid:$_l_sid,serial:$_l_serial' unsuccessfully."
+               return 1
+            fi
+         fi
+      done
+   fi
+
+   return 0
+}

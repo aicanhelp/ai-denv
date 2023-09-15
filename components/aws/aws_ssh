@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+ssh -i /home/modongsong/aws-proxy-key.pem ec2-user@$1

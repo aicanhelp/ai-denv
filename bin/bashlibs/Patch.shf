@@ -1,0 +1,187 @@
+#!/bin/sh
+#############################################################################################3
+#
+# patch.shf
+# This script file defines many common functions for patch
+#
+# Author: ndb478
+#
+##############################################################################################
+
+function Patch_findPatches()
+{
+    local _l_old_version=${1:?'[ERROR]Patch_findPatches: argument old version required!'}
+    local _l_product=${2:?'[ERROR]Patch_findPatches: argument product required!'}
+    local _l_retVar=${3:?'[ERROR]Patch_findPatches: argument ret variable required!'}
+
+    local _l_old_ver
+    CM_parseVersionInfo "$_l_old_version" "_l_old_ver"
+
+    local _l_new_version
+    BC_getPackageVer _l_new_version
+    CM_parseVersionInfo "$_l_new_version" "_l_new_version"
+
+    Log_empty
+    log "Finding patch packages for updating ${_l_product} ${_l_old_ver} to ${_l_new_version}..."
+
+    local _l_new_patches=""
+    local _l_comp_result
+
+    local dir
+    local patchVersion
+    for dir in ${INSTALLER_DIR}/products/${_l_product}/patches/*
+    do
+        if [ -d $dir ]; then
+           patchVersion=$(basename $dir)
+           if expr "${_l_new_version}" '>' "${patchVersion}" >/dev/null; then
+               CM_compareVersion "${patchVersion}" "$_l_old_ver"
+               _l_comp_result=$?
+               ((_l_comp_result>12))  && _l_new_patches="${_l_new_patches} ${patchVersion}"
+           fi
+        fi
+    done
+
+    if [ "${_l_new_patches}" != "" ]; then
+       log "Found patches '${_l_new_patches}' for '${_l_product}'"
+    else
+       log "No patches found for '${_l_product}."
+    fi
+    Log_empty
+
+    eval "${_l_retVar}='${_l_new_patches}'"
+}
+
+function Patch_hasDBUpdate()
+{
+    local _l_old_version=${1:?'[ERROR]Patch_hasDBUpdate: argument old version required!'}
+    local products=${2:?'[ERROR]Patch_hasDBUpdate: argument products required!'}
+
+    log "Check patches for verion ${_l_old_version} ... "
+
+    local product
+    for product in ${products}
+    do
+        [ ! -d ${INSTALLER_DIR}/products/${product}/patches ] && continue
+        for dir in ${INSTALLER_DIR}/products/${product}/patches/*
+        do
+            if [ -d $dir ]; then
+                [ -f ${dir}/update.sql ] && return 0
+            fi
+        done
+    done
+
+    return 1
+}
+
+function Patch_doPatch()
+{
+    local _l_product=${1:?'[ERROR]Patch_doPatch: argument product required!'}
+    local _l_new_patches=$2
+
+    if [ "${_l_new_patches}" != "" ]; then
+        CM_sortStringWords "${_l_new_patches}" _l_new_patches
+        local patchName
+        for patchName in "${_l_new_patches}"
+        do
+            local patchDir="${INSTALLER_DIR}/products/${_l_product}/patches/${patchName}"
+            #run patch script
+            log "Run patch script in $patchDir ..."
+
+            test -f $patchDir/update.sh && \
+            ! source $patchDir/update.sh && return 1
+            test -f $patchDir/update.sql && \
+            BC_copyDBScripts $patchDir/*.sql "products/${_l_product}/patches/${patchName}"
+            ! BC_runSqlFile "DB_DESC" "products/${_l_product}/patches/${patchName}/update.sql" && return 1
+        done
+    fi
+    return 0
+}
+
+function Patch_doForUpgrade()
+{
+    local _l_product=${1:?'[ERROR]Patch_doForUpgrade: argument product required!'}
+    local _l_new_patches=""
+    for dir in ${INSTALLER_DIR}/products/${_l_product}/patches/*
+    do
+        if [ -d $dir ]; then
+           patchVersion=$(basename $dir)
+           
+           _l_new_patches="${_l_new_patches} ${patchVersion}"
+        fi
+    done
+
+    log "Patchs for '${_l_product}': ${_l_new_patches}"
+
+    if ! Patch_doPatch "${_l_product}" "${_l_new_patches}"; then
+        Log_err "Patch was not done completely."
+        Log_empty
+        return 1
+    fi
+
+    log "Patch for '${_l_product}' is complished."
+
+    return 0
+}
+
+function Patch_doCheck()
+{
+    local _l_cur_version=${1:?'[ERROR]Patch_doCheck: argument version required!'}
+    
+    local l_new_version
+    BC_getPackageVer l_new_version
+
+    local l_installedVersion_2=${_l_cur_version#*' '}
+    local l_new_version_2=${l_new_version#*' '}
+    if expr "$l_installedVersion_2" '>=' "$l_new_version_2" >& /dev/null && [ "$_l_force" = "false" ]; then
+      log " "
+      log "The installed version is the latest version."
+      log "Note: you can use argument '-f' to force installer to finish a patch operation."
+      log " "
+      exit 0
+    fi
+
+    if ! CM_askYesOrNo "Would you like to update current installed BMI?" No $INSTALL_CONFIRM; then
+        log "User aborts the operation."
+        log "exit."
+        exit 1
+    fi
+}
+
+function Patch_start()
+{
+	  local _l_cur_version
+    BC_getInstalledVer _l_cur_version
+    
+    Patch_doCheck "${_l_cur_version}"
+
+    local installedProducts
+    Setup_findAllInstalled "installedProducts"
+
+    BC_getDBAddr
+    [ "${_l_cur_version}" = "" ] && BC_validateDBAccessible
+    [ "${_l_cur_version}" != "" ] && \
+    Patch_hasDBUpdate "${_l_cur_version}" "${installedProducts}" && BC_validateDBAccessible
+
+    Setup_reInstallAll "com"
+
+    if [ ! -z "${_l_cur_version}" ]; then
+        local product
+        for product in $installedProducts
+        do
+            local patches=""
+            Patch_findPatches "${_l_cur_version}" "${product}" "patches"
+            if ! Patch_doPatch "${product}" "${patches}"; then
+                Log_err "Patch was not done completely."
+                Log_empty
+                exit 1
+            fi
+        done
+    fi
+
+    #--Setup_reInstallAll has done this
+    #BC_saveBmiProperties
+
+    log "Finish installing patches."
+    BC_InstalledFinally
+}
+

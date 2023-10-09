@@ -1,0 +1,1 @@
+- 编译时候可能会出现，not found cudnn.h.  这个文件可能被房子/usr/include. copy 到 /usr/local/cuda/include就能编译了。

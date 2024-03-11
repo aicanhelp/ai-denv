@@ -1,3 +1,69 @@
 #!/usr/bin/env bash
 
-ssh -i /home/modongsong/aws-proxy-key.pem -N -L3128:localhost:3128 ec2-user@$1
+set -e
+action=$1
+
+instance="i-039a82a4e7d10e293"
+
+functions=(`grep -E 'function * do.*' $0 | sed 's/function *do_//' | sed 's/ *(.*//'`)
+
+function do_start() {
+    local status="stopped"
+    while [ "$status" != "running" ]; do
+      status=`aws ec2 --output text start-instances --instance-ids ${instance} | grep CURRENTSTATE | awk '{print $3}'`
+      echo "try to start ec2, current state: ${status}"
+      sleep 3
+    done
+    public_name=`aws ec2 --output text describe-instances --instance-ids ${instance} | grep ASS | head -1 | awk '{print $3}'`
+
+    echo "public dns name: ${public_name}"
+    echo "Try to connect to ${public_name}"
+
+    ssh -i /home/modongsong/aws-proxy-key.pem -N -L3128:localhost:3128 ec2-user@${public_name}
+}
+
+function do_stop() {
+    local status='running'
+    while [ "$status" = "running" ]; do
+      status=`aws ec2 --output text stop-instances --instance-ids ${instance} | grep CURRENTSTATE | awk '{print $3}'`
+      echo "try to start ec2, current state: ${status}"
+      sleep 3
+    done
+}
+
+function do_set_git(){
+#    git config --global http.proxy "http://127.0.0.1:3128"
+#    git config --global https.proxy "http://127.0.0.1:3128"
+
+    git config --global http.http://github.com.proxy "http://127.0.0.1:3128"
+    git config --global https.https://github.com.proxy "http://127.0.0.1:3128"
+}
+
+function do_unset_git(){
+    git config --global --unset http.proxy
+    git config --global --unset https.proxy
+}
+
+function do_status() {
+   echo "try to get ec2 status, GOT: "
+   aws ec2 --output text describe-instances --instance-ids ${instance} | grep -E '(STATE|ASS)' | tail -2
+}
+
+function do_ssh() {
+   public_name=`aws ec2 --output text describe-instances --instance-ids ${instance} | grep ASS | head -1 | awk '{print $3}'`
+   ssh -i /home/modongsong/aws-proxy-key.pem ec2-user@${public_name}
+}
+
+function do_help(){
+  echo "$0 [${functions[*]}]"
+}
+
+function do_config() {
+   git config user.name "aicanhelp"
+   git config credential.helper store
+}
+
+test "${action}" = "-h" && action="help"
+do_${action}
+
+echo

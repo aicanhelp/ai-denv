@@ -9,6 +9,7 @@ git_server = "http://172.20.92.53/"
 
 def clone(fold_name, repository_name):
     cur_dir = os.path.abspath(os.curdir)
+    
     try:
         if os.path.exists(fold_name + '/.git'):
             os.chdir(fold_name)

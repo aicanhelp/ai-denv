@@ -56,4 +56,14 @@ tokens.dat
 .idea
 kipp
 
-components/gitlab/gitlab
+components/gitlab/gitlab*
+
+
+remote: error: branch refs/heads/feature:
+remote: To push into this reference you need 'Push' rights.
+remote: User: modongsong
+remote: Contact an administrator to fix the permissions
+remote: Processing changes: refs: 1, done    
+To http://gerrit.ai.cmri.cn:29480/gerrit/a/QDLAKE/base/back/jtqdh-datastore-service
+ ! [remote rejected] feature -> feature (prohibited by Gerrit: not permitted: update)
+error: failed to push some refs to 'http://gerrit.ai.cmri.cn:29480/gerrit/a/QDLAKE/base/back/jtqdh-datastore-service'

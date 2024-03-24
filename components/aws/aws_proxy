@@ -29,6 +29,28 @@ function do_stop() {
       echo "try to start ec2, current state: ${status}"
       sleep 3
     done
+    do_unproxy
+}
+
+function do_set_proxy(){
+    gsettings set org.gnome.system.proxy mode 'manual'
+    gsettings set org.gnome.system.proxy use-same-proxy true
+    gsettings set org.gnome.system.proxy.http enabled true
+    gsettings set org.gnome.system.proxy.http host '127.0.0.1:3128'
+    gsettings set org.gnome.system.proxy.http port 3128
+    gsettings set org.gnome.system.proxy ignore-hosts '["localhost", "127.0.0.0/8", "::1", "*baidu.*", "*sina.*", "*jd.*", "*amazon.*", "*.126.*", "*.163.*", "*bilibili.*", "*.hdslb.*", "*.biligame.*", "*.bdstatic.*", "*.gvt2.*", "*.bigfun.*", "*.csdn.*", "*.jianshu.*", "*.ctrip.*", "*.12306.*", "*.oschina.*", "*.streamlit.*", "*.zhihu.*", "*.linkedin.*","*.cn"]'
+}
+
+function do_unset_proxy(){
+    gsettings set org.gnome.system.proxy mode 'none'
+}
+
+function do_set_env(){
+   export http_proxy="127.0.0.1:3128"
+   export https_proxy="127.0.0.1:3128"
+   export ftp_proxy="127.0.0.1:3128"
+   export socks_proxy="127.0.0.1:3128"
+   export ignore_proxy="localhost, 127.0.0.0/8, ::1, *baidu.*, *sina.*, *jd.*, *amazon.*, *.126.*, *.163.*, *bilibili.*, *.hdslb.*, *.biligame.*, *.bdstatic.*, *.gvt2.*, *.bigfun.*, *.csdn.*, *.jianshu.*, *.ctrip.*, *.12306.*, *.oschina.*, *.streamlit.*, *.zhihu.*, *.linkedin.*"
 }
 
 function do_set_git(){

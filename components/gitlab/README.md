@@ -8,3 +8,5 @@ GitLab Deployment
 - 4、save and exit, then run: gitlab-ctl reconfigure
 - 5、Got root password: sudo docker exec -it gitlab grep 'Password:' /etc/gitlab/initial_root_password
 - 6、Access gitlab with localhost:9080
+
+token: YvpLsFnsspv_bh1mFYRu

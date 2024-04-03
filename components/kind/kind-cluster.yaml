@@ -1,0 +1,32 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  extraPortMappings:
+  - containerPort: 9071
+    hostPort: 9071
+    listenAddress: "0.0.0.0"
+  - containerPort: 9072
+    hostPort: 9072
+    listenAddress: "0.0.0.0"
+  - containerPort: 9073
+    hostPort: 9073
+    listenAddress: "0.0.0.0"
+  - containerPort: 9074
+    hostPort: 9074
+    listenAddress: "0.0.0.0"
+  - containerPort: 9075
+    hostPort: 9075
+    listenAddress: "0.0.0.0"
+  - containerPort: 9076
+    hostPort: 9076
+    listenAddress: "0.0.0.0"
+  - containerPort: 9091
+    hostPort: 9077
+    listenAddress: "0.0.0.0"
+  - containerPort: 10000
+    hostPort: 10000
+    listenAddress: "0.0.0.0"
+  - containerPort: 10002
+    hostPort: 10002
+    listenAddress: "0.0.0.0"

@@ -2,6 +2,7 @@ kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
 - role: control-plane
+  image: kindest/node:v1.27.10
   extraPortMappings:
   - containerPort: 9071
     hostPort: 9071

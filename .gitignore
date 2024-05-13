@@ -57,6 +57,7 @@ tokens.dat
 kipp
 
 components/gitlab/gitlab*
+__data/
 
 
 remote: error: branch refs/heads/feature:

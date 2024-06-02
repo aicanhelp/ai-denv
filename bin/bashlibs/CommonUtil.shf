@@ -372,6 +372,32 @@ function CM_sortStringWords()
     eval "$l_array_ret='$_l_tmp'"
 }
 
+function CM_array_slice()
+{
+    local retVar=${1:?'[ERROR]CM_array_slice: return var name required!'}
+    local l_array_var=${2:?'[ERROR]CM_array_slice: array variable required!'}
+    local l_range=${3:?'[ERROR]CM_array_slice: slice range required!,input as "from:to"'}
+    
+    eval "$retVar=\${${l_array_var}[*]:${l_range}}"
+}
+
+function CM_array_replace()
+{
+    local retVar=${1:?'[ERROR]CM_array_replace: return var name required!'}
+    local l_array_var=${2:?'[ERROR]CM_array_replace: array variable required!'}
+    local l_replace=${3:?'[ERROR]CM_array_replace: slice range required!, input as "find/replace"'}
+    
+    eval "$retVar=\${${l_array_var}[*]/${l_replace}}"
+}
+
+function CM_array_find()
+{
+    local l_array_var=${1:?'[ERROR]CM_array_find: array variable required!'}
+    local l_find=${2:?'[ERROR]CM_array_find: find required!}
+    
+    eval "echo \"\${${l_array_var}[@]}\" | grep -wq \"$l_find\"" && return 0 || return 1
+}
+
 function CM_mergeArray()
 {
     local retVar=${1:?'[ERROR]CM_mergeArray: return var name required!'}

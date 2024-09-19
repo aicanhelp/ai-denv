@@ -5,9 +5,13 @@ baseDir=$(dirname $0)
 cd $baseDir
 home=`pwd`
 
-docker run -d --name kingbase \
+sudo docker rm -f kingbase
+
+sudo docker run -d \
+ --name kingbase \
  -p 54321:54321 \
  --privileged \
+ --restart always \
  -v $home/__data:/home/kingbase/userdata/ \
  -e ENABLE_CI=no  \
  -e NEED_START=yes \

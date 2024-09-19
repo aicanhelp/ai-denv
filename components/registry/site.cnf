@@ -1,0 +1,7 @@
+[server]
+authorityKeyIdentifier=keyid,issuer
+basicConstraints = critical,CA:FALSE
+extendedKeyUsage=serverAuth
+keyUsage = critical, digitalSignature, keyEncipherment
+subjectAltName = DNS:docker.cmri.com, IP:192.168.122.1
+subjectKeyIdentifier=hash

@@ -1,0 +1,11 @@
+#!/bin/bash
+
+function __pub__(){
+     mosquitto_pub -h 0.0.0.0 -p 1883  -t test -m $1
+}
+
+function __sub__(){
+    mosquitto_sub -h 0.0.0.0 -p 1883  -t test
+}
+
+__$1__ $2

@@ -10,3 +10,40 @@ GitLab Deployment
 - 6、Access gitlab with localhost:9080
 
 token: YvpLsFnsspv_bh1mFYRu
+
+
+### 数据迁移：
+```
+# 停止服务
+gitlab-ctl stop
+ 
+# 备份目录
+mv /var/opt/gitlab/git-data{,_bak}
+ 
+# 新建新目录
+mkdir -p /data/service/gitlab/git-data
+ 
+# 设置目录权限
+chown -R git:git /data/service/gitlab
+chmod -R 775 /data/service/gitlab
+ 
+# 同步文件，使用rsync保持权限不变
+rsync -av /var/opt/gitlab/git-data_bak/repositories /data/service/gitlab/git-data/
+ 
+# 创建软链接
+ln -s /data/service/gitlab/git-data /var/opt/gitlab/git-data
+ 
+# 更新权限
+gitlab-ctl upgrade
+ 
+# 重新配置
+gitlab-ctl reconfigure
+ 
+# 启动
+gitlab-ctl start
+```
+
+### 权限不足时
+```
+docker exec -it gitlab update-permissions
+```

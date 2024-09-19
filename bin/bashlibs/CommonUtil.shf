@@ -393,7 +393,7 @@ function CM_array_replace()
 function CM_array_find()
 {
     local l_array_var=${1:?'[ERROR]CM_array_find: array variable required!'}
-    local l_find=${2:?'[ERROR]CM_array_find: find required!}
+    local l_find=${2:?'[ERROR]CM_array_find: find required!'}
     
     eval "echo \"\${${l_array_var}[@]}\" | grep -wq \"$l_find\"" && return 0 || return 1
 }

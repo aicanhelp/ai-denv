@@ -1,9 +1,12 @@
 {
     "data-root": "/udata/repository/docker",
     "registry-mirrors": [
-        "https://hub-mirror.c.163.com",
-        "https://mirror.baidubce.com"
+        "https://docker.m.daocloud.io"
     ],
+    "features": {
+        "containerd-snapshotter": "true"
+    },
+    "insecure-registries": ["0.0.0.0:5000","192.168.122.1:5000"],
     "runtimes": {
         "nvidia": {
             "args": [],

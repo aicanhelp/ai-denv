@@ -5,3 +5,11 @@
   -  (4) 设定 默认builder为 buildx-builder: docker buildx use buildx-builder 
   -  (5) docker交叉编译： docker buildx build --platform linux/arm,linux/arm64,linux/amd64 -t mds/mds-alpine . 
         使用：--load 可以导入到本地 docker，但是--platform参数后只能有一个
+        --push 可以直接push到仓库
+
+  2、在x86机器运行arm镜像
+  - 确保你的docker实验特性已经开启
+  ```
+  docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+  ```
+  - 

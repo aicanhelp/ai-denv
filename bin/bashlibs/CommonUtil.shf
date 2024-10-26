@@ -489,13 +489,13 @@ function CM_fileExists()
       function exists()
       {
          local file
-    		for file in $fileName
-    		do
+    	 for file in $fileName
+    	 do
             [ -e \$file ] && return 0
-    		done
-    		return 1
-    	}
-    	exists
+    	 done
+    	 return 1
+      }
+      exists
     "
     return $?
 }

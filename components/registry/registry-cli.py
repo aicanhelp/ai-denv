@@ -786,8 +786,16 @@ def main_loop(args):
     if args.delete:
         print("Will delete all but {0} last tags".format(keep_last_versions))
 
+
+    image_list=[]
+    delete_tags=[]
+
     if args.image is not None:
-        (image_list,tag) = args.image.split(':')
+        for _image in args.image:
+            _i_name = _image.split(':')
+            image_list.append(_i_name[0])
+            if len(_i_name)>1:
+                delete_tags.append(_i_name[1])
     else:
         image_list = registry.list_images()
         if args.images_like:
@@ -799,8 +807,6 @@ def main_loop(args):
         if not args.plain:
             print("---------------------------------")
             print("Image: {0}".format(image_name))
-
-        
 
         all_tags_list = registry.list_tags(image_name)
 
@@ -836,6 +842,7 @@ def main_loop(args):
         keep_tags.extend(args.keep_tags)
         if args.keep_tags_like:
             keep_tags.extend(get_tags_like(args.keep_tags_like, tags_list))
+
         if args.keep_by_hours:
             keep_tags.extend(get_newer_tags(registry, image_name,
                                             args.keep_by_hours, tags_list))
@@ -852,6 +859,8 @@ def main_loop(args):
                 # A manifest might be shared between different tags. Explicitly add those
                 # tags that we want to preserve to the keep_tags list, to prevent
                 # any manifest they are using from being deleted.
+                tags_list_to_delete.extend(delete_tags)
+                
                 tags_list_to_keep = [
                     tag for tag in tags_list if tag not in tags_list_to_delete]
                 keep_tags.extend(tags_list_to_keep)

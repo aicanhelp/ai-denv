@@ -1,0 +1,28 @@
+#!/bin/bash
+
+IMAGE=$1
+ARCH=$2
+test -z $ARCH && ARCH=amd
+
+test -z ${IMAGE} && echo "ERROR: image is required!" && echo "Usage: $0 [image] [arm|amd]"  && exit 1
+
+IMAGE=dockerpull.com/${IMAGE}
+
+function __pull()
+{
+    docker pull --platform=${ARCH}64 ${IMAGE}
+}
+
+function __push()
+{
+    image_name=`echo ${IMAGE}|sed 's/.*\///g'`
+    l_image=0.0.0.0:5000/aiip/${image_name}-{ARCH}64
+
+    docker tag ${IMAGE} ${l_image}
+
+    docker push ${l_image}
+
+    docker rmi -f ${IMAGE} ${l_image}
+}
+
+__pull && __push

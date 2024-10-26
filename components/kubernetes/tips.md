@@ -61,3 +61,13 @@ location = "mirror.registry.com"
 ```
 systemctl restart crio
 ```
+
+
+遇到不信任的ca机构发布的证书时（比如自签名的），需要把跟证书放到集群的各个节点
+（1）对于containerd的容器，需要放到：
+/etc/containerd/certs.d/registry.xxxxxxxxx.cn/registry.xxxxxxxxx.cn.crt
+（2）同时，ubuntu还需要放到/usr/local/share/ca-certificates/下，并运行 update-ca-certificates 进行导入
+（3）centos，需要放到：/etc/pki/ca-trust/source/anchors/
+   ln -s /etc/pki/ca-trust/source/anchors/registry.xxxxxxxxx.cn.crt /etc/ssl/certs/registry.xxxxxxxxx.cn.crt
+   update-ca-trust
+（4）然后，重启：systemctl restart containerd 

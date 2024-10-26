@@ -1,0 +1,27 @@
+#!/bin/bash
+
+IMAGE=$1
+ARCH=$2
+test -z $ARCH && ARCH=amd
+
+test -z ${IMAGE} && echo "ERROR: image is required!" && echo "Usage: $0 [image] [arm|amd]"  && exit 1
+
+IMAGE=0.0.0.0:5000/${IMAGE}
+
+function __pull()
+{
+    docker pull ${IMAGE}
+}
+
+function __push()
+{
+    r_image=registry.cmri.cn/${IMAGE}
+
+    docker tag ${IMAGE} ${r_image}
+
+    docker push ${r_image}
+
+    docker rmi -f ${IMAGE} ${r_image}
+}
+
+__pull && __push

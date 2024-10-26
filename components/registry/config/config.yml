@@ -1,0 +1,35 @@
+version: 0.1
+log:
+  accesslog:
+    disabled: true
+  level: debug
+  formatter: text
+  fields:
+    service: registry
+    environment: staging
+storage:
+  delete:
+    enabled: true
+  cache:
+    blobdescriptor: inmemory
+  filesystem:
+    rootdirectory: /var/lib/registry
+auth:
+  htpasswd:
+    realm: basic-realm
+    path: /etc/docker/registry/auth/registry
+http:
+  addr: :8443
+  host: https://192.168.122.1
+  headers:
+    X-Content-Type-Options: [nosniff]
+  http2:
+    disabled: false
+  tls:
+    certificate: /etc/docker/registry/ssl/cmri.cn.crt
+    key: /etc/docker/registry/ssl/cmri.cn.key
+health:
+  storagedriver:
+    enabled: true
+    interval: 10s
+threshold: 3

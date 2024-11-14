@@ -47,7 +47,19 @@ function setup(){
 }
 
 function genkey(){
-    
+    docker run --rm \
+    -v . :/root/registry \
+    nginx:latest sh -c "cd /root/registry && ./registry.sh genkey_in_docker"
+
+    cd ${cur_dir}
+    echo "9、生成用户http 认证文件"
+    docker run --rm  --entrypoint htpasswd  0.0.0.0:5000/aiip/httpd:alpine-amd64 -Bbn modongsong beijing > config/auth/registry
+}
+
+function genkey_in_docker(){
+    mkdir config/ssl
+    mkdir config/auth
+
     cur_dir=`pwd`
     cd config/ssl
 
@@ -77,10 +89,6 @@ function genkey(){
     rm -rf cmri.cn.crt
     openssl x509 -req -days 3650 -in "cmri.cn.csr" -sha256  -CA "root-ca.crt" \
             -CAkey "root-ca.key"  -CAcreateserial  -out "cmri.cn.crt" -extfile "cmri.cn.cnf" -extensions server
-
-    cd ${cur_dir}
-    echo "9、生成用户http 认证文件"
-    docker run --rm  --entrypoint htpasswd  0.0.0.0:5000/aiip/httpd:alpine-amd64 -Bbn modongsong beijing > config/auth/registry
 
 }
 

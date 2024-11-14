@@ -20,6 +20,7 @@ auth:
     path: /etc/docker/registry/auth/registry
 http:
   addr: :8443
+  prefix: /
   host: https://192.168.122.1
   headers:
     X-Content-Type-Options: [nosniff]

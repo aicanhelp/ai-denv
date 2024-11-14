@@ -1,0 +1,21 @@
+version: "2"
+
+services:
+  gitea:
+    image: registry.cmri.cn/aiip/gitea:latest-rootless
+    restart: always
+    volumes:
+      - ./data:/var/lib/gitea
+      - ./config:/etc/gitea
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "3030:3000"
+      - "2222:2222"
+    networks:
+      - apisix
+
+networks:
+  apisix:
+    # dirver: bridge , external 表示与其他共享网络定义
+    external: true

@@ -54,3 +54,5 @@ VirtualBox安装目录>VBoxManage list hdds
 VirtualBox安装目录>VBoxManage modifyhd "E:\CentOS.vdi" –resize 20480
 20480的单位是MB
 
+3. 使用windows的磁盘工具扩展磁盘
+

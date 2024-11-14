@@ -180,7 +180,7 @@ volumes:
 
 
 
-13、kubernetes拉取私库镜像（创建secret）
+13、kubernetes拉取私库镜像（创建secret, 用docker配置创建）
 
 ```
 kubectl create secret generic registry.cmri.cn.key -n aimedical --from-file=.dockerconfigjson=/root/.docker/config.json --type=kubernetes.io/dockerconfigjson

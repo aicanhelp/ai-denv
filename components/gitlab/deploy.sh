@@ -21,7 +21,7 @@ function deploy_(){
         --volume  $home/gitlab/config:/etc/gitlab \
         --volume  $home/gitlab/logs:/var/log/gitlab \
         --volume  $home/gitlab/data:/var/opt/gitlab \
-        gitlab/gitlab-ce:latest
+         gitlab/gitlab-ce:16.9.1-ce.0
 
     cd $curDir
 

@@ -26,25 +26,26 @@ kubectl create secret docker-registry  regsecret --docker-server=registry-vpc.cn
 
 拉取私有仓库的两种方法：
 
-（1） 在Pod指定imagePullSecrets
+- （1） 在Pod指定imagePullSecrets
 
-（2）将认证信息添加到serviceAccount中
+- （2）将认证信息添加到serviceAccount中
 
-将认证信息添加到serviceAccount中，要比直接在Pod指定imagePullSecrets要安全很多
+将认证信息添加到serviceAccount中，要比直接在Pod指定imagePullSecrets要安全很多 
 
-1、创建admin的sa： kubectl create serviceaccount admin
+- 1、创建admin的sa： kubectl create serviceaccount admin
 
 查看admin的sa的信息，Image pull secrets为空，此时k8s为用户自动生成认证信息，但没有授权
 kubectl get sa admin
 kubectl describe sa admin
 
-2、添加secrets到serviceaccount中
-（1）查看secrets的信息：kubectl get secrets ，其中的myregistrykey是私有仓库的认证信息
-（2）将myregistrykey添加到serviceaccount的admin的imagePullSecrets
+- 2、添加secrets到serviceaccount中
+  - （1）查看secrets的信息：kubectl get secrets ，其中的myregistrykey是私有仓库的认证信息
+  - （2）将myregistrykey添加到serviceaccount的admin的imagePullSecrets
    kubectl patch serviceaccount admin -p '{"imagePullSecrets": [{"name": "myregistrykey"}]}'
-2.3 绑定serviceaccount和pod
-（1） 应用文件：kubectl apply -f pod3.yml
 
+2.3 绑定serviceaccount和pod  
+  - （1） 应用文件：kubectl apply -f pod3.yml
+```
 apiVersion: v1
 kind: Pod
 metadata:
@@ -54,7 +55,9 @@ spec:
     - name: redis-photo
       image: reg.westos.org/linux/redis-photon
   serviceAccountName: admin
-（2）查看pod的信息：kubectl get pod，私有仓库的镜像拉取成功，pod正常运行
+```
+
+  - （2）查看pod的信息：kubectl get pod，私有仓库的镜像拉取成功，pod正常运行
 
 
 1、创建 CA 私钥  

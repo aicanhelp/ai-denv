@@ -14,7 +14,7 @@ openssl x509 -inform PEM -in certificate.cer -out certificate.crt
 需要/usr/share/applictions中对应的*.desktop文件中增加 StartupWMClass。同时，
 *.desktop文件的文件名改为${VM_Class}.desktop. 这时，应用程序启动后，就有add to favorite了
 有关获取VMClass：
-启动应用程序，然后小窗口启动一个termial，运行'xpop|grep WM_CLASS',然后鼠标点击一下应用程序的窗口，terminal中就会返回该应用程序的WM_Class.
+启动应用程序，然后小窗口启动一个termial，运行'xprop|grep WM_CLASS',然后鼠标点击一下应用程序的窗口，terminal中就会返回该应用程序的WM_Class.
 
 
 【经验分享】Ubuntu上添加可信任根证书

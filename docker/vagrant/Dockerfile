@@ -1,0 +1,1 @@
+FROM vagrantlibvirt/vagrant-libvirt:sha-a94ce0d-slim

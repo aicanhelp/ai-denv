@@ -1,0 +1,1 @@
+FROM --platform=amd64 apache/superset:4.1.1-py311

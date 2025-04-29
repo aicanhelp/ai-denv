@@ -1,0 +1,1 @@
+FROM dinkydocker/dinky-standalone-server:1.2.3-flink1.19

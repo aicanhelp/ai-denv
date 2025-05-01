@@ -1,5 +1,5 @@
 FROM openeuler/openeuler:22.03-lts-sp4
-ARG K8s_vERSION=v1.30.7
+ARG K8s_VERSION=v1.30.7
 
 WORKDIR /k8s_package
 

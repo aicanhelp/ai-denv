@@ -65,7 +65,7 @@ function pypi_mirror() {
 
     for pyver in 3.11 3.12; do
         echo "===> Download binary for python $pyver"
-        pip download $DEST --only-binary :all: --python-version $pyver $PLATFORM -r $REQ || exit 1
+        pip3 download $DEST --only-binary :all: --python-version $pyver $PLATFORM -r $REQ || exit 1
     done
     /bin/rm $REQ
 

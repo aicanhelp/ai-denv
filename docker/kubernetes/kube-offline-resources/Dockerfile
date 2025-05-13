@@ -42,7 +42,7 @@ COPY bin/pip.conf /etc/
 RUN bash prepare.sh
 
 
-FROM alpine:3.21
+FROM openeuler/openeuler:22.03-lts-sp4
 LABEL version=1.0.0 description="For collecting the resources of operations"
 
 WORKDIR /jt-ops/resources

@@ -42,7 +42,7 @@ COPY bin/pip.conf /etc/
 RUN bash prepare.sh
 
 
-FROM alpine:latest
+FROM alpine:3.21
 LABEL version=1.0.0 description="For collecting the resources of operations"
 
 WORKDIR /jt-ops/resources

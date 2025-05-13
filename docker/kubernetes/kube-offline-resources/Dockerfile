@@ -42,7 +42,7 @@ COPY bin/pip.conf /etc/
 RUN bash prepare.sh
 
 
-FROM ${IMAGE_BASE}/operations/registry-nginx:2.8.3-${ARCH}
+FROM alpine:latest
 LABEL version=1.0.0 description="For collecting the resources of operations"
 
 WORKDIR /jt-ops/resources

@@ -2,7 +2,7 @@ FROM --platform=amd64 openeuler/openeuler:22.03-lts-sp4
 
 WORKDIR /tmp
 
-RUN dnf install -y rsync gcc libffi-devel createrepo git
+RUN dnf install -y rsync gcc libffi-devel createrepo git python3-pip
 
 COPY bin/* .
 COPY bin/pip.conf /etc/

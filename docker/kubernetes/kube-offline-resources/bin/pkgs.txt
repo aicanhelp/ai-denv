@@ -1,13 +1,43 @@
-# RHEL8 specific
+# Do not require docker anymore
+#docker-ce
+#containerd.io
 
-# python3
-python3.11
-python3.11-pip
-python3.11-devel
-#libselinux-python3
-python3-libselinux
+# kubespray: required_pkgs
+device-mapper-libs
+nss
+#conntrack
+conntrack-tools
+container-selinux
+libseccomp
 
-# resolve version conflict...
-dnf-plugins-core
-yum-utils
+# compilers (for cffi, etc)
+#gcc
+#annobin
+#libffi-devel
+#openssl
+#openssl-libs
+#openssl-devel
 
+# kubespray: common_required_pkgs
+curl
+rsync
+socat
+unzip
+e2fsprogs
+xfsprogs
+ebtables
+bash-completion
+
+ipvsadm
+ipset
+
+# others
+audit
+yum-plugin-versionlock
+firewalld
+gnupg2
+lvm2
+
+# nfs
+#rpcbind
+#nfs-utils

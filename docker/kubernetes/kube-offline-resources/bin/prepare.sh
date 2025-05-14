@@ -4,9 +4,12 @@
 
 source ./config.sh
 
+VERSION_MAJOR=7
 KUBESPRAY_TARBALL=kubespray-${KUBESPRAY_VERSION}.tar.gz
 KUBESPRAY_DIR=./cache/kubespray-${KUBESPRAY_VERSION}
 FILES_DIR=outputs/files
+
+uname -a | grep -E "x86|amd" >/dev/null && V_LOCAL_ARCH=x86_64 || V_LOCAL_ARCH=aarch64
 
 function set_locale() {
     export LANG=C.UTF-8
@@ -55,7 +58,7 @@ function pypi_mirror() {
     pip3 install -U pip python-pypi-mirror
 
     DEST="-d outputs/pypi/files"
-    PLATFORM="--platform manylinux2014_x86_64"  # PEP-599
+    PLATFORM="--platform manylinux2014_${V_LOCAL_ARCH}"  # PEP-599
 
     REQ=requirements.tmp
     #sed "s/^ansible/#ansible/" ${KUBESPRAY_DIR}/requirements.txt > $REQ  # Ansible does not provide binary packages
@@ -89,9 +92,7 @@ function pypi_mirror() {
 
 function create_repo() {
     # packages
-    PKGS=$(cat pkglist/rhel/*.txt pkglist/rhel/${VERSION_MAJOR}/*.txt | grep -v "^#" | sort | uniq)
-
-    dnf install 'dnf-command(download)'
+    PKGS=$(cat pkglist/*.txt | grep -v "^#" | sort | uniq)
 
     CACHEDIR=cache/cache-rpms
     mkdir -p $CACHEDIR

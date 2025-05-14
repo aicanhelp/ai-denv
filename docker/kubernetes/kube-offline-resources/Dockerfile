@@ -2,7 +2,7 @@ FROM --platform=amd64 openeuler/openeuler:20.03-lts-sp4 as builder20-amd
 
 WORKDIR /tmp
 
-RUN dnf install -y rsync gcc libffi-devel createrepo git
+RUN dnf install -y rsync gcc libffi-devel createrepo git python3-pip
 
 COPY bin/* .
 COPY bin/pip.conf /etc/
@@ -14,7 +14,7 @@ FROM --platform=arm64 openeuler/openeuler:20.03-lts-sp4 as builder20-arm
 
 WORKDIR /tmp
 
-RUN dnf install -y rsync gcc libffi-devel createrepo git
+RUN dnf install -y rsync gcc libffi-devel createrepo git python3-pip
 
 COPY bin/* .
 COPY bin/pip.conf /etc/
@@ -24,7 +24,7 @@ RUN bash prepare.sh
 
 FROM --platform=amd64 openeuler/openeuler:22.03-lts-sp4 as builder22-amd
 
-RUN dnf install -y rsync gcc libffi-devel createrepo git
+RUN dnf install -y rsync gcc libffi-devel createrepo git python3-pip
 
 COPY bin/* .
 COPY bin/pip.conf /etc/
@@ -34,7 +34,7 @@ RUN bash prepare.sh
 
 FROM --platform=arm64 openeuler/openeuler:22.03-lts-sp4 as builder22-arm
 
-RUN dnf install -y rsync gcc libffi-devel createrepo git
+RUN dnf install -y rsync gcc libffi-devel createrepo git python3-pip
 
 COPY bin/* .
 COPY bin/pip.conf /etc/

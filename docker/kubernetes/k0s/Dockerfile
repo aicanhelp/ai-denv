@@ -1,4 +1,4 @@
-FROM --platform=amd64 alpine:latest
+FROM --platform=amd64 alpine:3.21.3
 
 WORKDIR /k0s
 

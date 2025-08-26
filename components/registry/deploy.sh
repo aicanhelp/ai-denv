@@ -13,17 +13,31 @@ baseDir=$(dirname $0)
 cd $baseDir
 home=`pwd`
 
+function purge(){
+    images_list=($(registry |grep -B 1 "no tags" | grep Image | sed 's/.* //'))
+
+    for image in ${images_list[@]}
+    do
+        echo "Delete images without tags: ${image}"
+        docker exec docker-registry1 rm -rf  /var/lib/registry/docker/registry/v2/repositories/${image}
+    done
+
+    registry |grep -B 1 "no tags"
+}
+
 
 function start1(){
+    local _name="docker-registry$1"
 
-    docker stop docker-registry
-    docker rm docker-registry
+    docker stop ${_name}
+    docker rm ${_name}
 
     docker run -d \
       -p 5000:5000 \
       --restart=always \
-      --name docker-registry \
+      --name ${_name} \
       -v /udata/repository:/var/lib/registry \
+      -e REGISTRY_STORAGE_DELETE_ENABLED=true \
       registry:latest
 
     # docker stop registry-web
@@ -47,21 +61,21 @@ function setup(){
 }
 
 function genkey(){
-    docker run --rm \
-    -v . :/root/registry \
-    nginx:latest sh -c "cd /root/registry && ./registry.sh genkey_in_docker"
-
+   
     cd ${cur_dir}
     echo "9、生成用户http 认证文件"
-    docker run --rm  --entrypoint htpasswd  0.0.0.0:5000/aiip/httpd:alpine-amd64 -Bbn modongsong beijing > config/auth/registry
+    htpasswd -Bbn cmri beijing > config/auth/registry
 }
 
 function genkey_in_docker(){
-    mkdir config/ssl
-    mkdir config/auth
+    local _v_dir=$1
 
-    cur_dir=`pwd`
-    cd config/ssl
+    test -z "${_v_dir}" && _v_dir="config"
+
+    mkdir -p ${_v_dir}/ssl
+    mkdir -p ${_v_dir}/auth
+
+    cd ${_v_dir}/ssl
 
     echo "1、创建 CA 私钥  config/ssl/root-ca.key"
     rm -rf root-ca.key
@@ -89,25 +103,63 @@ function genkey_in_docker(){
     rm -rf cmri.cn.crt
     openssl x509 -req -days 3650 -in "cmri.cn.csr" -sha256  -CA "root-ca.crt" \
             -CAkey "root-ca.key"  -CAcreateserial  -out "cmri.cn.crt" -extfile "cmri.cn.cnf" -extensions server
-
+    cd $curDir
 }
 
 function start2(){
-    docker stop docker-registry
-    docker rm docker-registry
+    local _name="docker-registry$1"
 
-    pwd
+    docker stop ${_name}
+    docker rm ${_name}
+
     docker run -d \
       --privileged  \
       -p 8443:8443 \
       --restart=always \
-      --name docker-registry \
+      --name ${_name} \
       --volume `pwd`/config:/etc/docker/registry \
       --volume /udata/repository:/var/lib/registry \
+      -e REGISTRY_STORAGE_DELETE_ENABLED=true \
       registry:latest 
 
 
     cd $curDir
 }
 
+function start3(){
+    local _name="docker-registry$1"
+
+    docker stop ${_name}
+    docker rm ${_name}
+    
+
+    genkey_in_docker "config-simple"
+    docker run -d \
+      --privileged  \
+      -p 8443:8443 \
+      --restart=always \
+      --name ${_name} \
+      --volume `pwd`/config-simple:/etc/docker/registry \
+      --volume /udata/repository:/var/lib/registry \
+      -e REGISTRY_STORAGE_DELETE_ENABLED=true \
+      registry:latest 
+
+
+    cd $curDir
+}
+
+function start(){
+    start1 1 && start2 2
+}
+
+function starts(){
+    start1 1 && start3 2
+}
+
+function stop(){
+    docker stop docker-registry1
+    docker rm docker-registry1
+    docker stop docker-registry2
+    docker rm docker-registry2
+}
 $1

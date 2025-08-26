@@ -788,14 +788,14 @@ def main_loop(args):
 
 
     image_list=[]
-    delete_tags=[]
+    delete_tags_input=[]
 
     if args.image is not None:
         for _image in args.image:
             _i_name = _image.split(':')
             image_list.append(_i_name[0])
             if len(_i_name)>1:
-                delete_tags.append(_i_name[1])
+                delete_tags_input.append(_i_name[1])
     else:
         image_list = registry.list_images()
         if args.images_like:
@@ -859,11 +859,11 @@ def main_loop(args):
                 # A manifest might be shared between different tags. Explicitly add those
                 # tags that we want to preserve to the keep_tags list, to prevent
                 # any manifest they are using from being deleted.
-                tags_list_to_delete.extend(delete_tags)
+                tags_list_to_delete.extend(delete_tags_input)
                 
                 tags_list_to_keep = [
                     tag for tag in tags_list if tag not in tags_list_to_delete]
-                keep_tags.extend(tags_list_to_keep)
+                keep_tags=tags_list_to_keep
 
             keep_tags.sort() # Make order deterministic for testing
             delete_tags(

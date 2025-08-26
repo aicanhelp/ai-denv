@@ -1,0 +1,7 @@
+[server]
+authorityKeyIdentifier=keyid,issuer
+basicConstraints = critical,CA:FALSE
+extendedKeyUsage=serverAuth
+keyUsage = critical, digitalSignature, keyEncipherment
+subjectAltName = IP:127.0.0.1,IP:0.0.0.0,IP:192.168.122.1
+subjectKeyIdentifier=hash

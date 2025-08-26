@@ -1,0 +1,1 @@
+FROM --platform=amd64 cnrancher/autok3s:v0.9.3

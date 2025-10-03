@@ -187,7 +187,7 @@ RUN --mount=type=cache,target=${SUPERSET_HOME}/.cache/uv \
     fi
 
 # Copy required files for Python build
-COPY --from=superset-source /superset/pyproject.toml setup.py MANIFEST.in README.md ./
+COPY --from=superset-source /superset/pyproject.toml /superset/setup.py /superset/MANIFEST.in /superset/README.md ./
 COPY --from=superset-source /superset/superset-frontend/package.json superset-frontend/
 COPY --from=superset-source /superset/scripts/check-env.py scripts/
 

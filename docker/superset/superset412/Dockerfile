@@ -26,7 +26,7 @@ ARG BUILDPLATFORM=${BUILDPLATFORM:-amd64}
 # Include translations in the final build
 ARG BUILD_TRANSLATIONS="false"
 
-FROM alpine:lates AS superset-source
+FROM alpine:latest AS superset-source
 
 RUN apk add git
 

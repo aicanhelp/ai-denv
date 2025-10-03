@@ -205,7 +205,7 @@ RUN /app/docker/apt-install.sh \
 COPY --from=superset-node /app/superset/static/assets superset/static/assets
 
 # TODO, when the next version comes out, use --exclude superset/translations
-COPY superset superset
+COPY --from=superset-source /superset/superset superset
 # TODO in the meantime, remove the .po files
 RUN rm superset/translations/*/*/*.po
 

@@ -26,7 +26,9 @@ ARG BUILDPLATFORM=${BUILDPLATFORM:-amd64}
 # Include translations in the final build
 ARG BUILD_TRANSLATIONS="false"
 
-FROM python:${PY_VER} AS superset-source
+FROM alpine:lates AS superset-source
+
+RUN apk add git
 
 RUN git clone https://github.com/martyngigg/superset.git /superset
 

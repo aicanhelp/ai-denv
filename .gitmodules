@@ -1,6 +1,3 @@
-[submodule "resources/free-for-dev"]
-	path = resources/free-for-dev
-	url = https://github.com/ripienaar/free-for-dev.git
 [submodule "resources/microk8s-addons"]
 	path = resources/microk8s-addons
 	url = https://github.com/canonical/microk8s-community-addons.git

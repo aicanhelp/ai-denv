@@ -1,1 +1,1 @@
-FROM --platform=amd64 bitnami/zookeeper:3.7.1
+FROM --platform=amd64 bitnami/zookeeper:3.9.3-debian-12-r21

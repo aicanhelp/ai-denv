@@ -1,0 +1,1 @@
+FROM --platform=amd64 bitnami/zookeeper:3.7.1

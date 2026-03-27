@@ -1,0 +1,1079 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# ============================================================================
+# C++ Template - Taskfile
+# ============================================================================
+# This is the main Taskfile for the C++ template project.
+# Common tasks are imported from .taskfiles/ modules.
+# ============================================================================
+version: '3'
+
+includes:
+  # ==========================================================================
+  # Shared Modules (sync from generic using: task sync:from:generic)
+  # ==========================================================================
+  common:
+    taskfile: .taskfiles/Taskfile.common.yml
+    internal: true
+  _deps:
+    taskfile: .taskfiles/Taskfile.deps.yml
+    internal: true
+  quality:
+    taskfile: .taskfiles/Taskfile.quality.yml
+    internal: true
+  sync:
+    taskfile: .taskfiles/Taskfile.sync.yml
+
+vars:
+  # cpp project defaults
+  __TF_VALIDATION_CPP_BUILD_SYSTEMS:
+    sh: |
+      echo "bazel cmake xmake"
+  __TF_VALIDATION__CPP_COMPILERS:
+    sh: |
+      echo "clang++ {{if eq OS "windows"}}msvc{{else}}g++{{end}}"
+  CPP_PROJECT_NAME: '{{default .CPP_PROJECT_NAME "cpp-template"}}'
+  CPP_BUILD_SYSTEM: '{{default .CPP_BUILD_SYSTEM "cmake"}}'
+  CPP_BUILD_DIR: '{{default .CPP_BUILD_DIR "build"}}'
+  CPP_BUILD_TYPE: '{{default .CPP_BUILD_TYPE "Release"}}'
+  CPP_COMPILER: '{{default .CPP_COMPILER "clang++"}}'
+
+  # Build targets - loaded from .build-targets.yml
+  CPP_BUILD_TARGETS_RAW:
+    sh: cat .build-targets.yml
+  CPP_BUILD_TARGETS:
+    ref: '(fromYaml .CPP_BUILD_TARGETS_RAW).targets'
+
+env:
+  BAZEL_VC:
+    sh: |
+      {{if eq OS "windows"}}powershell -ExecutionPolicy Bypass -Command "(Get-ChildItem 'C:\Program Files*\Microsoft Visual Studio\*\*\VC\Tools\MSVC' | Sort-Object LastWriteTime -Descending | Select-Object -First 1).Parent.Parent.FullName"{{else}}echo ""{{end}}
+  BAZEL_VC_FULL_VERSION:
+    sh: |
+      {{if eq OS "windows"}}powershell -ExecutionPolicy Bypass -Command "(Get-ChildItem 'C:\Program Files*\Microsoft Visual Studio\*\*\VC\Tools\MSVC\*' | Sort-Object LastWriteTime -Descending | Select-Object -First 1).Name"{{else}}echo ""{{end}}
+  BAZEL_LLVM:
+    sh: |
+      {{if eq OS "windows"}}powershell -ExecutionPolicy Bypass -Command "try { (Get-Item (Get-Command clang++).Source).Directory.Parent.FullName } catch { echo '' }"{{else}}echo ""{{end}}
+  CMAKE_VS_GENERATOR:
+    sh: |
+      {{if eq OS "windows"}}powershell -ExecutionPolicy Bypass -Command "(Get-ChildItem 'C:\Program Files*\Microsoft Visual Studio\*' -Directory | Sort-Object Name | Select-Object -First 1).Name | ForEach-Object { if (\$_ -eq '2022') { 'Visual Studio 17 2022' } elseif (\$_ -eq '2019') { 'Visual Studio 16 2019' } elseif (\$_ -eq '2017') { 'Visual Studio 15 2017' } else { 'Visual Studio 17 2022' } }"{{else}}echo ""{{end}}
+  SDKROOT:
+    sh: |
+      echo "{{if eq OS "darwin"}}/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk{{else}}$SDKROOT{{end}}"
+
+tasks:
+  # ==========================================================================
+  # Utility Tasks
+  # ==========================================================================
+
+  print:env:
+    desc: 'Print current build environment variables'
+    cmds:
+      - task: common:print:env
+
+  # ==========================================================================
+  # Build Tasks
+  # ==========================================================================
+
+  build:
+    cmds:
+      - cmd: |
+          echo "{{.__TF_HEADER_LINE}}"
+          echo "Compiling for {{OS}}/{{ARCH}}, using {{.CPP_BUILD_SYSTEM}} and {{.CPP_COMPILER}}"
+          echo "{{.__TF_HEADER_LINE}}"
+          {{if ne OS "windows"}}{{if eq .CPP_COMPILER "msvc"}}
+            echo "❌ MSVC compiler is only supported on Windows."
+            exit 1
+          {{end}}{{end}}
+      - task: print:env
+      - task: 'build:{{.CPP_BUILD_SYSTEM}}'
+        vars:
+          CPP_BUILD_DIR: '{{.CPP_BUILD_DIR}}'
+          CPP_BUILD_TYPE: '{{.CPP_BUILD_TYPE}}'
+          CPP_COMPILER: '{{.CPP_COMPILER}}'
+          CPP_PROJECT_NAME: '{{.CPP_PROJECT_NAME}}'
+    desc: 'Build project (system: {{.CPP_BUILD_SYSTEM}}, type: {{.CPP_BUILD_TYPE}})'
+    sources:
+      - include/**/*.h
+      - include/**/*.hpp
+      - src/**/*.cpp
+      - src/**/*.hpp
+      - tests/**/*.cpp
+    summary: |
+      Build the C++ project for the current platform
+
+      Compiles the application using the configured build system and compiler.
+      Automatically selects the appropriate build configuration based on
+      environment variables.
+
+      Variables:
+        CPP_BUILD_SYSTEM: Build system to use (default: cmake)
+                          Options: bazel, cmake, xmake
+        CPP_BUILD_TYPE:   Build type (default: Release)
+                          Options: Debug, Release
+        CPP_COMPILER:     Compiler to use (default: clang++)
+                          Options: clang++, g++, msvc (Windows only)
+        CPP_BUILD_DIR:    Output directory for build artifacts (default: build)
+
+      Examples:
+        task build                              # Build with defaults
+        task build CPP_BUILD_TYPE=Debug         # Build debug version
+        task build CPP_BUILD_SYSTEM=bazel       # Build using Bazel
+        task build CPP_COMPILER=g++             # Build with GCC
+
+  build:all:
+    cmds:
+      - for:
+          var: CPP_BUILD_TARGETS
+        task: build:target
+        vars:
+          TARGET_ARCH: '{{.ITEM.arch}}'
+          TARGET_OS: '{{.ITEM.os}}'
+    desc: 'Build all architecture targets for current OS'
+    summary: |
+      Build all architecture targets for the current OS
+
+      Iterates through targets defined in .build-targets.yml and builds
+      all architectures that match the current operating system.
+      Non-matching OS targets are automatically skipped.
+
+      Output binaries are placed in build/<project>_<os>_<arch>[.exe].
+
+      Examples:
+        task build:all                         # Build all archs for current OS
+        task build:all CPP_BUILD_TYPE=Debug    # Build all archs in debug mode
+
+  build:target:
+    cmds:
+      - cmd: |
+          # On macOS, skip if target arch doesn't match host arch
+          # Cross-compilation is not supported with mise-managed LLVM because the
+          # standalone LLVM distribution only includes libraries for the host architecture
+          # (e.g., ARM64 LLVM has ARM64 libc++, not x86_64 libc++)
+          {{if and (eq OS "darwin") (eq .TARGET_OS "darwin")}}
+          if [ "{{.NORMALIZED_HOST_ARCH}}" != "{{.TARGET_ARCH}}" ]; then
+            echo "⏭️  Skipping {{.TARGET_OS}}/{{.TARGET_ARCH}} (host is {{.NORMALIZED_HOST_ARCH}}, cross-compile not supported with mise LLVM)"
+            exit 0
+          fi
+          {{end}}
+          echo "{{.__TF_HEADER_LINE}}"
+          echo "Building {{.CPP_PROJECT_NAME}} for {{.TARGET_OS}}/{{.TARGET_ARCH}} in {{.CPP_BUILD_TYPE}} mode"
+          echo "{{.__TF_HEADER_LINE}}"
+      - task: 'build:target:impl'
+        vars:
+          ARCH_BUILD_DIR: '{{.ARCH_BUILD_DIR}}'
+          CPP_BUILD_DIR: '{{.ARCH_BUILD_DIR}}'
+          CPP_BUILD_SYSTEM: '{{.CPP_BUILD_SYSTEM}}'
+          CPP_BUILD_TYPE: '{{.CPP_BUILD_TYPE}}'
+          CPP_COMPILER: '{{.CPP_COMPILER}}'
+          CPP_PROJECT_NAME: '{{.CPP_PROJECT_NAME}}'
+          EXE_EXT: '{{.EXE_EXT}}'
+          NORMALIZED_HOST_ARCH: '{{.NORMALIZED_HOST_ARCH}}'
+          OUTPUT_NAME: '{{.OUTPUT_NAME}}'
+          TARGET_ARCH: '{{.TARGET_ARCH}}'
+          TARGET_OS: '{{.TARGET_OS}}'
+    desc: 'Build for a specific OS/ARCH target'
+    requires:
+      vars: [TARGET_ARCH, TARGET_OS]
+    status:
+      # Skip if TARGET_OS doesn't match current OS
+      - '[ "{{.TARGET_OS}}" != "{{OS}}" ]'
+    summary: |
+      Build for a specific OS/ARCH target
+
+      Compiles the application for the specified operating system and
+      architecture combination. Automatically skips if TARGET_OS doesn't
+      match the current OS.
+
+      On macOS, cross-architecture builds are NOT supported with mise-managed LLVM.
+      The standalone LLVM distribution only includes libraries (libc++, libunwind, etc.)
+      for the host architecture, so linking fails for non-native targets.
+      The task will skip with a warning for non-matching architectures on macOS.
+
+      Required Variables:
+        TARGET_OS:   Target operating system (linux, darwin, windows)
+        TARGET_ARCH: Target architecture (x86_64, aarch64)
+
+      Note: This task is typically called by build:all, not directly.
+    vars:
+      ARCH_BUILD_DIR: 'build-{{.TARGET_ARCH}}'
+      EXE_EXT: '{{if eq .TARGET_OS "windows"}}.exe{{end}}'
+      # Normalize host arch: Taskfile uses arm64/amd64, our targets use aarch64/x86_64
+      NORMALIZED_HOST_ARCH: '{{if eq ARCH "arm64"}}aarch64{{else if eq ARCH "amd64"}}x86_64{{else}}{{ARCH}}{{end}}'
+      OUTPUT_NAME: '{{.CPP_PROJECT_NAME}}_{{.TARGET_OS}}_{{.TARGET_ARCH}}{{.EXE_EXT}}'
+
+  build:target:impl:
+    cmds:
+      - task: 'build:target:clean'
+        vars:
+          ARCH_BUILD_DIR: '{{.ARCH_BUILD_DIR}}'
+      - task: 'build:{{.CPP_BUILD_SYSTEM}}'
+        vars:
+          CPP_BUILD_DIR: '{{.CPP_BUILD_DIR}}'
+          CPP_BUILD_TYPE: '{{.CPP_BUILD_TYPE}}'
+          CPP_COMPILER: '{{.CPP_COMPILER}}'
+          CPP_PROJECT_NAME: '{{.CPP_PROJECT_NAME}}'
+          TARGET_ARCH: '{{.TARGET_ARCH}}'
+      - cmd: |
+          {{if ne OS "windows"}}
+          mkdir -p build
+          # Find and copy the binary to build/ with proper naming
+          {{if eq .CPP_BUILD_SYSTEM "bazel"}}
+          cp bazel-bin/{{.CPP_PROJECT_NAME}}{{.EXE_EXT}} build/{{.OUTPUT_NAME}} 2>/dev/null || true
+          {{else}}
+          find {{.ARCH_BUILD_DIR}} -name "{{.CPP_PROJECT_NAME}}{{.EXE_EXT}}" -type f | head -n 1 | xargs -I{} cp {} build/{{.OUTPUT_NAME}} 2>/dev/null || true
+          {{end}}
+          {{else}}
+          {{.__TF_COMMAND_WRAPPER}} '{{.__TF_VAR_PREFIX}}dummy=$null;{{.__TF_SEP}}if (-not (Test-Path build)) { New-Item -ItemType Directory -Path build -Force | Out-Null };{{.__TF_SEP}}{{if eq .CPP_BUILD_SYSTEM "bazel"}}Copy-Item -Path "bazel-bin/{{.CPP_PROJECT_NAME}}{{.EXE_EXT}}" -Destination "build/{{.OUTPUT_NAME}}" -ErrorAction SilentlyContinue{{else}}{{.__TF_VAR_PREFIX}}found = Get-ChildItem -Path "{{.ARCH_BUILD_DIR}}" -Recurse -Filter "{{.CPP_PROJECT_NAME}}{{.EXE_EXT}}" -ErrorAction SilentlyContinue | Select-Object -First 1;{{.__TF_SEP}}if ({{.__TF_VAR_PREFIX}}found) { Copy-Item -Path {{.__TF_VAR_PREFIX}}found.FullName -Destination "build/{{.OUTPUT_NAME}}" }{{end}}'
+          {{end}}
+          echo "Built: build/{{.OUTPUT_NAME}}"
+    internal: true
+    requires:
+      vars:
+        [
+          ARCH_BUILD_DIR,
+          CPP_BUILD_DIR,
+          CPP_BUILD_SYSTEM,
+          CPP_BUILD_TYPE,
+          CPP_COMPILER,
+          CPP_PROJECT_NAME,
+          EXE_EXT,
+          NORMALIZED_HOST_ARCH,
+          OUTPUT_NAME,
+          TARGET_ARCH,
+          TARGET_OS,
+        ]
+    status:
+      # On macOS, skip if target arch doesn't match host arch (mise LLVM lacks cross-arch libs)
+      - '{{if and (eq OS "darwin") (eq .TARGET_OS "darwin")}}[ "{{.NORMALIZED_HOST_ARCH}}" != "{{.TARGET_ARCH}}" ]{{else}}false{{end}}'
+
+  build:target:clean:
+    cmds:
+      - cmd: |
+          # Clean build system caches/configs that may have wrong architecture
+          rm -rf .xmake {{.ARCH_BUILD_DIR}}
+          {{.__TF_MISE_E}} bazel clean 2>/dev/null || true
+    desc: 'Clean build artifacts for a specific architecture target'
+    internal: true
+    requires:
+      vars: [ARCH_BUILD_DIR]
+
+  build:dist:
+    cmds:
+      - cmd: .scripts/build-dist.sh "{{.CPP_PROJECT_NAME}}"
+        platforms: [darwin, linux]
+      - cmd: '{{.__TF_MISE_E_PWSH_FILE}} .scripts/build-dist.ps1 -ProjectName "{{.CPP_PROJECT_NAME}}"'
+        platforms: [windows]
+    deps:
+      - build:all
+    desc: 'Create distribution archives for all builds in build/'
+    sources:
+      - build/*
+    summary: |
+      Create distribution archives for all builds
+
+      Creates compressed archives for all binaries in the build/ directory.
+      Unix binaries are packaged as .tar.gz, Windows binaries as .zip.
+      Output archives are placed in dist/.
+
+      Examples:
+        task build:dist                      # Build all and create archives
+
+  build:bazel:
+    cmds:
+      - |
+        {{.__TF_MISE_E_UV_RUN}} python .scripts/compile_templates.py --build-system bazel --compiler {{.CPP_COMPILER}}{{if .TARGET_ARCH}} --arch {{.TARGET_ARCH}}{{end}}
+      - |
+        BAZEL_CONFIG="{{if eq .CPP_BUILD_TYPE "Debug"}}--compilation_mode=dbg{{else}}--compilation_mode=opt{{end}}"
+        {{.__TF_MISE_E}} bazel build //:{{.CPP_PROJECT_NAME}} $BAZEL_CONFIG
+
+        # Generate compile_commands.json for clang-tidy using Hedron
+        # Skip on macOS: mise LLVM has broken macOS SDK header integration (mbstate_t errors)
+        # Skip with MSVC: Hedron doesn't support MSVC
+        {{if and (ne OS "darwin") (ne .CPP_COMPILER "msvc")}}
+        {{.__TF_MISE_E}} bazel run @hedron_compile_commands//:refresh_all
+        {{end}}
+    deps:
+      - deps:sync:uv
+    desc: 'Build project using Bazel'
+    env:
+      CPP_BUILD_DIR: '{{.CPP_BUILD_DIR}}'
+      CPP_BUILD_TYPE: '{{.CPP_BUILD_TYPE}}'
+      CPP_COMPILER: '{{.CPP_COMPILER}}'
+      CPP_PROJECT_NAME: '{{.CPP_PROJECT_NAME}}'
+    generates:
+      - bazel-bin/{{.CPP_PROJECT_NAME}}
+    sources:
+      - .bazelrc
+      - BUILD.bazel
+      - MODULE.bazel
+      - WORKSPACE
+      - tests/BUILD.bazel
+    summary: |
+      Build project using Bazel build system
+
+      Compiles the C++ project using Bazel with the configured compiler.
+      Generates compile_commands.json for IDE integration using Hedron.
+
+      Variables:
+        CPP_BUILD_TYPE: Debug or Release (default: Release)
+        CPP_COMPILER:   Compiler to use (default: clang++)
+
+      Examples:
+        task build:bazel                        # Build with Bazel
+        task build:bazel CPP_BUILD_TYPE=Debug   # Debug build with Bazel
+
+  build:cmake:
+    cmds:
+      - |
+        {{.__TF_MISE_E_UV_RUN}} python .scripts/compile_templates.py --build-system cmake --compiler {{.CPP_COMPILER}}{{if .TARGET_ARCH}} --arch {{.TARGET_ARCH}}{{end}}
+      - |
+        {{.__TF_MISE_E_UV_RUN}} cmake -B "{{.CPP_BUILD_DIR}}" -G "{{.CMAKE_GENERATOR}}" \
+            -DCMAKE_BUILD_TYPE="{{.CPP_BUILD_TYPE}}" \
+            {{.CMAKE_COMPILER_FLAG}} \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        {{.__TF_MISE_E_UV_RUN}} cmake --build "{{.CPP_BUILD_DIR}}" --parallel
+    desc: 'Build project using CMake'
+    env:
+      CPP_BUILD_DIR: '{{.CPP_BUILD_DIR}}'
+      CPP_BUILD_TYPE: '{{.CPP_BUILD_TYPE}}'
+      CPP_COMPILER: '{{.CPP_COMPILER}}'
+      CPP_PROJECT_NAME: '{{.CPP_PROJECT_NAME}}'
+    generates:
+      - '{{.CPP_BUILD_DIR}}/CMakeCache.txt'
+      - '{{.CPP_BUILD_DIR}}/compile_commands.json'
+    sources:
+      - CMakeLists.txt
+      - tests/CMakeLists.txt
+    summary: |
+      Build project using CMake build system
+
+      Configures and builds the C++ project using CMake. Automatically
+      selects the appropriate generator based on OS and compiler.
+      Generates compile_commands.json for IDE integration.
+
+      Variables:
+        CPP_BUILD_TYPE: Debug or Release (default: Release)
+        CPP_COMPILER:   Compiler to use (default: clang++)
+        CPP_BUILD_DIR:  Output directory (default: build)
+
+      Examples:
+        task build:cmake                        # Build with CMake
+        task build:cmake CPP_BUILD_TYPE=Debug   # Debug build with CMake
+    vars:
+      CMAKE_COMPILER_FLAG: '{{if eq .CPP_COMPILER "msvc"}}{{else}}-DCMAKE_CXX_COMPILER={{.CPP_COMPILER}}{{end}}'
+      CMAKE_GENERATOR: '{{if eq OS "windows"}}{{if eq .CPP_COMPILER "msvc"}}{{.CMAKE_VS_GENERATOR}}{{else}}Ninja{{end}}{{else}}Unix Makefiles{{end}}'
+
+  build:xmake:
+    cmds:
+      - |
+        {{.__TF_MISE_E_UV_RUN}} python .scripts/compile_templates.py --build-system xmake --compiler {{.CPP_COMPILER}}{{if .TARGET_ARCH}} --arch {{.TARGET_ARCH}}{{end}}
+      - |
+        {{.__TF_MISE_E}} xmake f -m {{.XMAKE_MODE}}{{if .XMAKE_ARCH}} -a {{.XMAKE_ARCH}}{{end}} -y
+        {{.__TF_MISE_E}} xmake build -y
+        {{.__TF_MISE_E}} xmake project -k compile_commands "{{.CPP_BUILD_DIR}}"
+    desc: 'Build project using XMake'
+    env:
+      '{{if and (eq OS "windows") (eq .CPP_COMPILER "clang++")}}CXXFLAGS': '-Wno-error -Wno-unknown-warning-option'
+      CPP_BUILD_DIR: '{{.CPP_BUILD_DIR}}'
+      CPP_BUILD_TYPE: '{{.CPP_BUILD_TYPE}}'
+      CPP_COMPILER: '{{.CPP_COMPILER}}'
+      CPP_PROJECT_NAME: '{{.CPP_PROJECT_NAME}}'
+    generates:
+      - '{{.CPP_BUILD_DIR}}/compile_commands.json'
+      - .xmake/cache/config
+    sources:
+      - xmake.lua
+    summary: |
+      Build project using XMake build system
+
+      Configures and builds the C++ project using XMake. Generates
+      compile_commands.json for IDE integration.
+
+      Variables:
+        CPP_BUILD_TYPE: Debug or Release (default: Release)
+        CPP_COMPILER:   Compiler to use (default: clang++)
+        CPP_BUILD_DIR:  Output directory (default: build)
+
+      Examples:
+        task build:xmake                        # Build with XMake
+        task build:xmake CPP_BUILD_TYPE=Debug   # Debug build with XMake
+    vars:
+      XMAKE_ARCH: '{{if eq .TARGET_ARCH "aarch64"}}arm64{{else if eq .TARGET_ARCH "x86_64"}}x86_64{{end}}'
+      XMAKE_MODE: '{{if eq .CPP_BUILD_TYPE "Debug"}}debug{{else}}release{{end}}'
+
+  # ============================================================================
+  # Clean Tasks
+  # ============================================================================
+
+  clean:
+    cmds:
+      - cmd: |
+          # Clean Bazel cache if bazel is available
+          if command -v bazel &> /dev/null || [ -f .mise.toml ]; then
+            {{.__TF_MISE_E}} bazel clean 2>/dev/null || true
+          fi
+
+          rm -rf \
+              .bazelrc \
+              .cache \
+              .coverage \
+              .jscpd/html \
+              .task \
+              .xmake \
+              {{.CPP_BUILD_DIR}} \
+              build-* \
+              BUILD.bazel \
+              CMakeLists.txt \
+              compile_commands.json \
+              coverage \
+              dist \
+              docs-html \
+              MODULE.bazel \
+              src/CMakeLists.txt \
+              tests/BUILD.bazel \
+              WORKSPACE \
+              xmake.lua
+
+          find . -type d -name "bazel-*" | while read d; do rm -rf "$d"; done
+      - cmd: |
+          rm -rf ~/AppData/Local/Temp/.xmake*
+          rm -rf ~/AppData/Local/Temp/*.il
+        platforms: [windows]
+    desc: 'Clean all build artifacts'
+    summary: |
+      Clean all build artifacts
+
+      Removes all generated files and directories including:
+        - build/        - Compiled binaries
+        - build-*/      - Architecture-specific build directories
+        - dist/         - Distribution archives
+        - .task/        - Task cache
+        - coverage/     - Test coverage reports
+        - .jscpd/html   - Duplicate check reports
+        - Generated build files (CMakeLists.txt, BUILD.bazel, etc.)
+        - Bazel cache (via bazel clean)
+
+      Examples:
+        task clean                           # Remove all artifacts
+
+  # ============================================================================
+  # Code Quality Tasks (Project-specific overrides)
+  # ============================================================================
+
+  format:
+    desc: 'Format code and fix issues'
+    summary: |
+      Format all code in the project
+
+      Runs clang-format, Prettier, and Ruff formatters.
+
+      Examples:
+        task format
+    cmds:
+      - task: format:clang
+      - task: quality:format:prettier
+      - task: quality:format:ruff
+      - cmd: echo "✅ Code format completed"
+
+  format:clang:
+    desc: 'Format C++ code using clang-format'
+    silent: true
+    cmds:
+      - |
+        {{.__TF_MISE_E}} python .scripts/format_clang.py --fix
+      - cmd: echo "- ✅ clang-format completed"
+
+  format:check:
+    desc: 'Check code formatting without fixing'
+    cmds:
+      - task: format:check:clang
+      - task: quality:format:check:prettier
+      - task: quality:format:check:ruff
+      - cmd: echo "✅ Code format check completed"
+
+  format:check:clang:
+    desc: 'Check C++ code formatting using clang-format'
+    silent: true
+    cmds:
+      - |
+        {{.__TF_MISE_E}} python .scripts/format_clang.py --check
+      - cmd: echo "- ✅ clang-format check completed"
+
+  lint:
+    desc: 'Run linter and fix issues'
+    summary: |
+      Run all linters and fix issues
+
+      Runs clang-tidy, ESLint, Pylint, PSScriptAnalyzer, and ShellCheck.
+
+      Examples:
+        task lint
+    cmds:
+      - task: lint:clang
+      - task: quality:lint:eslint
+      - task: quality:lint:pylint
+      - task: quality:lint:pwshlint
+      - task: quality:lint:shlint
+      - cmd: echo "✅ Linting completed"
+
+  lint:clang:
+    desc: 'Lint C++ code and fix issues'
+    silent: true
+    deps:
+      - task: build
+        vars:
+          CPP_BUILD_DIR: '{{.CPP_BUILD_DIR}}'
+          CPP_BUILD_SYSTEM: '{{.CPP_BUILD_SYSTEM}}'
+    cmds:
+      - |
+        {{.__TF_MISE_E_UV_RUN}} python .scripts/lint_clang.py --fix
+      - echo "- ✅ clang-tidy completed"
+
+  lint:check:
+    desc: 'Run linter without fixing'
+    cmds:
+      - task: lint:check:clang
+      - task: quality:lint:check:eslint
+      - task: quality:lint:check:pylint
+      - task: quality:lint:check:pwshlint
+      - task: quality:lint:check:shlint
+      - cmd: echo "✅ Linting check completed"
+
+  lint:check:clang:
+    desc: 'Check C++ code using clang-tidy'
+    silent: true
+    deps:
+      - task: build
+        vars:
+          CPP_BUILD_DIR: '{{.CPP_BUILD_DIR}}'
+          CPP_BUILD_SYSTEM: '{{.CPP_BUILD_SYSTEM}}'
+    cmds:
+      - |
+        {{.__TF_MISE_E_UV_RUN}} python .scripts/lint_clang.py
+      - echo "- ✅ clang-tidy check completed"
+
+  lint-staged:
+    desc: 'Run linter on staged files and fix issues'
+    cmds:
+      - task: quality:lint-staged
+
+  duplicate-check:
+    desc: 'Check for duplicate code using jscpd'
+    cmds:
+      - task: quality:duplicate-check
+    summary: |
+      Check for duplicate code using jscpd
+
+      Scans the codebase for copy-pasted code blocks and
+      generates a report. Updates the duplication badge.
+
+      Examples:
+        task duplicate-check                 # Check for duplicates
+
+  # ============================================================================
+  # Test Tasks
+  # ============================================================================
+
+  test:
+    cmds:
+      - task: test:{{.CPP_BUILD_SYSTEM}}
+        vars:
+          CPP_BUILD_DIR: '{{.CPP_BUILD_DIR}}'
+          CPP_BUILD_SYSTEM: '{{.CPP_BUILD_SYSTEM}}'
+          CPP_COMPILER: '{{.CPP_COMPILER}}'
+    deps:
+      - task: build
+        vars:
+          CPP_BUILD_DIR: '{{.CPP_BUILD_DIR}}'
+          CPP_BUILD_SYSTEM: '{{.CPP_BUILD_SYSTEM}}'
+          CPP_BUILD_TYPE: Debug
+          CPP_COMPILER: '{{.CPP_COMPILER}}'
+    desc: 'Run tests (system: {{.CPP_BUILD_SYSTEM}})'
+    silent: true
+    summary: |
+      Run tests for the C++ project
+
+      Builds the project in Debug mode and runs all tests using
+      the configured build system's test runner.
+
+      Variables:
+        CPP_BUILD_SYSTEM: Build system to use (default: cmake)
+        CPP_COMPILER:     Compiler to use (default: clang++)
+
+      Examples:
+        task test                            # Run tests
+        task test CPP_BUILD_SYSTEM=bazel     # Run tests with Bazel
+
+  test:bazel:
+    cmds:
+      - cmd: |
+          {{if eq OS "linux"}}
+            {{if eq .CPP_COMPILER "g++"}}
+          echo "📊 Running tests with coverage for g++..."
+          {{.__TF_MISE_E}} bazel coverage //tests/... --config=coverage --nocache_test_results
+            {{else}}
+          echo "✅ Running tests (coverage only supported with g++)..."
+          {{.__TF_MISE_E}} bazel test //tests/... --test_output=errors
+            {{end}}
+          {{else}}
+          echo "✅ Running tests (coverage only supported on Linux with g++)..."
+          {{.__TF_MISE_E}} bazel test //tests/... --test_output=errors
+          {{end}}
+        platforms: [darwin, linux]
+      - cmd: |
+          {{.__TF_MISE_E}} bazel test //tests/... --test_output=errors
+        platforms: [windows]
+      - task: test:gen-coverage
+        vars:
+          CPP_BUILD_DIR: '{{.CPP_BUILD_DIR}}'
+          CPP_BUILD_SYSTEM: '{{.CPP_BUILD_SYSTEM}}'
+          CPP_COMPILER: '{{.CPP_COMPILER}}'
+      - echo "- ✅ tests completed"
+    desc: 'Run tests with Bazel'
+    silent: true
+    summary: |
+      Run tests using Bazel test runner
+
+      Runs all tests in the tests/ directory using Bazel.
+      Coverage is generated on Linux with g++ compiler.
+
+      Examples:
+        task test:bazel                      # Run Bazel tests
+
+  test:cmake:
+    cmds:
+      - |
+        cd {{.CPP_BUILD_DIR}} && {{.__TF_MISE_E_UV_RUN}} ctest --output-on-failure {{if eq .CPP_COMPILER "msvc"}}-C Debug{{end}}
+      - task: test:gen-coverage
+        vars:
+          CPP_BUILD_DIR: '{{.CPP_BUILD_DIR}}'
+          CPP_BUILD_SYSTEM: '{{.CPP_BUILD_SYSTEM}}'
+          CPP_COMPILER: '{{.CPP_COMPILER}}'
+      - echo "- ✅ tests completed"
+    desc: 'Run tests with CMake'
+    silent: true
+    summary: |
+      Run tests using CTest (CMake test runner)
+
+      Runs all tests using CTest with verbose output on failure.
+      Generates coverage report if compiler supports it.
+
+      Examples:
+        task test:cmake                      # Run CMake tests
+
+  test:xmake:
+    cmds:
+      - |
+        {{.__TF_MISE_E}} xmake run -y {{.CPP_PROJECT_NAME}}-tests
+      - task: test:gen-coverage
+        vars:
+          CPP_BUILD_DIR: '{{.CPP_BUILD_DIR}}/{{.XMAKE_MODE}}'
+          CPP_BUILD_SYSTEM: '{{.CPP_BUILD_SYSTEM}}'
+          CPP_COMPILER: '{{.CPP_COMPILER}}'
+      - echo "- ✅ tests completed"
+    desc: 'Run tests with XMake'
+    silent: true
+    summary: |
+      Run tests using XMake test runner
+
+      Runs the test executable built by XMake.
+      Generates coverage report if compiler supports it.
+
+      Examples:
+        task test:xmake                      # Run XMake tests
+    vars:
+      XMAKE_MODE: '{{if eq .CPP_BUILD_TYPE "Debug"}}debug{{else}}release{{end}}'
+
+  test:gen-coverage:
+    cmds:
+      - cmd: |
+          {{if eq .CPP_COMPILER "msvc"}}
+          echo "⚠️ Coverage generation is not supported with MSVC. Skipping."
+          exit 0
+          {{end}}
+        platforms: [windows]
+      - cmd: |
+          {{if eq .CPP_BUILD_SYSTEM "bazel"}}
+            {{if or (ne .CPP_COMPILER "g++") (ne OS "linux")}}
+          echo "⚠️ Bazel coverage is only supported with g++ on Linux. Skipping."
+          exit 0
+            {{end}}
+
+          if [ ! -f "bazel-out/_coverage/_coverage_report.dat" ]; then
+            echo "⚠️ No coverage data found. Did coverage run successfully?"
+            exit 0
+          fi
+
+          if ! command -v genhtml >/dev/null 2>&1; then
+            echo "⚠️ genhtml not found. Install: sudo apt-get install lcov"
+            exit 1
+          fi
+
+          echo "📊 Coverage Summary (Source Files Only):"
+          if command -v lcov >/dev/null 2>&1; then
+            lcov --list bazel-out/_coverage/_coverage_report.dat 2>/dev/null | \
+              tail -n +3 | \
+              grep -v -E "(tests/|integration/|unit/)" | \
+              grep -v "^Executed" | \
+              grep -v "^Test cases" || \
+              lcov --list bazel-out/_coverage/_coverage_report.dat 2>/dev/null | tail -n +3
+          fi
+
+          mkdir -p coverage
+          if ! genhtml bazel-out/_coverage/_coverage_report.dat \
+            --output-directory coverage \
+            --branch-coverage \
+            --highlight \
+            --legend \
+            --ignore-errors empty \
+            --quiet 2>/dev/null; then
+            echo "⚠️ Failed to generate coverage report. The coverage data may be empty."
+            exit 0
+          fi
+
+          echo "✅ HTML coverage report: coverage/index.html"
+          exit 0
+          {{end}}
+        platforms: [darwin, linux]
+      - cmd: |
+          {{if or (eq .CPP_BUILD_SYSTEM "cmake") (eq .CPP_BUILD_SYSTEM "xmake")}}
+            {{if eq .CPP_COMPILER "msvc"}}
+          echo "⚠️ Coverage is not supported with MSVC. Skipping."
+          exit 0
+            {{end}}
+
+          echo "📊 Generating coverage report..."
+          eval "$(mise trust && mise env)"
+
+          GCOV_EXEC="gcov"
+          {{if eq .CPP_COMPILER "clang++"}}
+          if command -v llvm-cov >/dev/null 2>&1; then
+            GCOV_EXEC="llvm-cov gcov"
+            echo "ℹ️ Using llvm-cov for clang++ coverage"
+          else
+            echo "⚠️ Warning: llvm-cov not found, coverage may fail with clang++"
+          fi
+          {{else if eq .CPP_COMPILER "g++"}}
+          CXX_VERSION=$({{.CPP_COMPILER}} -dumpversion | cut -d. -f1)
+          if command -v "gcov-$CXX_VERSION" >/dev/null 2>&1; then
+            GCOV_EXEC="gcov-$CXX_VERSION"
+            echo "ℹ️ Using $GCOV_EXEC to match {{.CPP_COMPILER}} version $CXX_VERSION"
+          else
+            echo "⚠️ Warning: gcov-$CXX_VERSION not found, using default gcov"
+          fi
+          {{end}}
+
+          uv run gcovr --root . \
+            --filter 'src/.*' --filter 'include/.*' \
+            --exclude 'tests/.*' --exclude 'build/_deps/.*' \
+            --gcov-executable "$GCOV_EXEC" \
+            --gcov-ignore-errors=no_working_dir_found \
+            --txt
+
+          mkdir -p coverage
+          uv run gcovr --root . \
+            --filter 'src/.*' --filter 'include/.*' \
+            --exclude 'tests/.*' --exclude 'build/_deps/.*' \
+            --gcov-executable "$GCOV_EXEC" \
+            --gcov-ignore-errors=no_working_dir_found \
+            --html-details coverage/index.html 2>/dev/null
+          echo "✅ HTML coverage report: coverage/index.html"
+          {{end}}
+        platforms: [darwin, linux]
+      - cmd: |
+          {{if or (eq .CPP_BUILD_SYSTEM "cmake") (eq .CPP_BUILD_SYSTEM "xmake")}}
+            {{if eq .CPP_COMPILER "msvc"}}
+          echo "⚠️ Coverage is not supported with MSVC. Skipping."
+          exit 0
+            {{end}}
+          {{end}}
+        platforms: [windows]
+    desc: 'Generate coverage report'
+    silent: true
+    summary: |
+      Generate test coverage report
+
+      Generates HTML coverage reports from test runs.
+      Coverage support varies by build system and compiler:
+        - Bazel: g++ on Linux only
+        - CMake/XMake: clang++ or g++ (not MSVC)
+
+      Output is placed in coverage/index.html.
+
+      Examples:
+        task test:gen-coverage               # Generate coverage
+
+  # ============================================================================
+  # Development Tools
+  # ============================================================================
+
+  run:
+    cmds:
+      - |
+        echo "🏃 Running application..."
+        {{.__TF_COMMAND_WRAPPER}} '{{
+          .__TF_VAR_PREFIX}}BUILD_PATH="{{if eq .CPP_BUILD_SYSTEM "bazel"}}bazel-out{{else}}{{.CPP_BUILD_DIR}}{{end}}";{{.__TF_SEP}}{{
+            if ne OS "windows"}}eval $(find ./$BUILD_PATH/{{if eq .CPP_BUILD_SYSTEM "bazel"}}*-opt{{end}} -type f -name {{.CPP_PROJECT_NAME}} | head -n 1){{
+            else}}(Get-ChildItem ./$BUILD_PATH{{if eq .CPP_BUILD_SYSTEM "bazel"}}/*-opt/bin{{end}} -Recurse -Filter {{
+              .CPP_PROJECT_NAME}}.exe | Select-Object -First 1).FullName | ForEach-Object { & $_ }{{
+            end}}'
+    deps:
+      - task: build
+        vars:
+          CPP_BUILD_DIR: '{{.CPP_BUILD_DIR}}'
+          CPP_BUILD_SYSTEM: '{{.CPP_BUILD_SYSTEM}}'
+          CPP_PROJECT_NAME: '{{.CPP_PROJECT_NAME}}'
+    desc: 'Run application'
+    summary: |
+      Build and run the application
+
+      Builds the project in Release mode and runs the resulting
+      binary. Automatically locates the binary in the build output.
+
+      Examples:
+        task run                             # Build and run
+        task run CPP_BUILD_SYSTEM=bazel      # Run Bazel build
+
+  debug:
+    cmds:
+      - cmd: |
+          {{if eq OS "windows"}}
+          echo "⚠️ CLI debugging not supported on Windows."
+          echo "ℹ️ Please use Visual Studio or your IDE's debugger instead."
+          echo ""
+          echo "Alternatively, install gdb via MSYS2 and run manually:"
+          {{.__TF_COMMAND_WRAPPER}} '{{
+            .__TF_VAR_PREFIX}}BUILD_PATH="{{if eq .CPP_BUILD_SYSTEM "bazel"}}bazel-out{{else}}{{.CPP_BUILD_DIR}}{{end}}";{{.__TF_SEP}}{{
+              }}(Get-ChildItem ./$BUILD_PATH{{if eq .CPP_BUILD_SYSTEM "bazel"}}/*-dbg/bin{{end}} -Recurse -Filter {{
+                .CPP_PROJECT_NAME}}.exe | Select-Object -First 1).FullName | ForEach-Object { Write-Host "gdb `"$_`"" }'
+          exit 0
+          {{else}}
+          if command -v lldb >/dev/null 2>&1; then
+            echo "🐛 Starting lldb debugger..."
+            lldb $(find ./{{if eq .CPP_BUILD_SYSTEM "bazel"}}bazel-out/*-dbg{{else}}{{.CPP_BUILD_DIR}}{{end}} -name {{.CPP_PROJECT_NAME}} | head -n 1)
+          elif command -v gdb >/dev/null 2>&1; then
+            echo "🐛 Starting gdb debugger..."
+            gdb $(find ./{{if eq .CPP_BUILD_SYSTEM "bazel"}}bazel-out/*-dbg{{else}}{{.CPP_BUILD_DIR}}{{end}} -name {{.CPP_PROJECT_NAME}} | head -n 1)
+          else
+            echo "⚠️ No debugger found. Please install gdb or lldb."
+            exit 1
+          fi
+          {{end}}
+    deps:
+      - task: build
+        vars:
+          CPP_BUILD_DIR: '{{.CPP_BUILD_DIR}}'
+          CPP_BUILD_SYSTEM: '{{.CPP_BUILD_SYSTEM}}'
+          CPP_BUILD_TYPE: Debug
+          CPP_COMPILER: '{{.CPP_COMPILER}}'
+    desc: 'Run application with debugger (gdb/lldb)'
+    summary: |
+      Build and run application with debugger
+
+      Builds the project in Debug mode and launches it in a debugger.
+      Uses lldb on macOS, gdb on Linux. Windows users should use
+      Visual Studio or their IDE's debugger.
+
+      Examples:
+        task debug                           # Build and debug
+
+  # ============================================================================
+  # Documentation Tasks
+  # ============================================================================
+
+  docs:
+    cmds:
+      - |
+        {{.__TF_MISE_E_UV_RUN}} mkdocs build
+    desc: 'Build documentation'
+    summary: |
+      Build project documentation
+
+      Generates static HTML documentation from Markdown files
+      using MkDocs. Output is placed in docs-html/.
+
+      Examples:
+        task docs                            # Build docs
+
+  docs:serve:
+    cmds:
+      - |
+        echo "📚 Starting documentation server..."
+        echo "📖 Open http://127.0.0.1:8000 in your browser"
+        {{.__TF_MISE_E_UV_RUN}} mkdocs serve
+    desc: 'Serve documentation locally with live reload'
+    summary: |
+      Serve documentation with live reload
+
+      Starts a local development server for documentation.
+      Changes to Markdown files are reflected immediately.
+
+      Examples:
+        task docs:serve                      # Start docs server
+
+  docs:deploy:
+    cmds:
+      - |
+        {{.__TF_MISE_E_UV_RUN}} mkdocs gh-deploy --force
+    desc: 'Deploy documentation to GitHub Pages'
+    summary: |
+      Deploy documentation to GitHub Pages
+
+      Builds documentation and pushes to the gh-pages branch
+      for hosting on GitHub Pages.
+
+      Examples:
+        task docs:deploy                     # Deploy to GitHub Pages
+
+  # ============================================================================
+  # Validation Tasks
+  # ============================================================================
+
+  validate:
+    cmds:
+      - for:
+          var: __TF_VALIDATION_CPP_BUILD_SYSTEMS
+          split: ' '
+        task: validate:by:build-system
+        vars:
+          CPP_BUILD_SYSTEM: '{{.ITEM}}'
+    desc: 'Run integration tests for all build systems'
+    silent: true
+    summary: |
+      Run full validation for all build systems
+
+      Runs the complete CI pipeline for each build system
+      (bazel, cmake, xmake) with each compatible compiler.
+
+      This is a comprehensive test that takes significant time.
+
+      Examples:
+        task validate                        # Validate all systems
+
+  validate:by:build-system:
+    cmds:
+      - for:
+          var: __TF_VALIDATION__CPP_COMPILERS
+          split: ' '
+        task: validate:by:build-system:compiler
+        vars:
+          CPP_BUILD_DIR: 'build'
+          CPP_BUILD_SYSTEM: '{{.CPP_BUILD_SYSTEM}}'
+          CPP_COMPILER: '{{.ITEM}}'
+          CPP_PROJECT_NAME: 'cpp-template'
+    desc: 'Run CI pipeline for specific build system'
+    silent: true
+    summary: |
+      Run validation for a specific build system
+
+      Runs the CI pipeline for the specified build system
+      with all compatible compilers.
+
+      Variables:
+        CPP_BUILD_SYSTEM: Build system to validate
+
+      Examples:
+        task validate:by:build-system CPP_BUILD_SYSTEM=cmake
+
+  validate:by:build-system:compiler:
+    cmds:
+      - task: format
+      - task: clean
+      - task: build:dist
+      - task: clean
+      - task: build
+      - task: lint
+      - task: run
+      - task: clean
+      - task: test
+      # TODO: Enable docs generation in validation once we find a way to install doxygen cross OS
+      # - task: docs
+      - cmd: |
+          echo ""
+          echo "{{.__TF_HEADER_LINE}}"
+          echo "✅ Validation successful for {{.CPP_BUILD_SYSTEM}} with {{.CPP_COMPILER}}"
+          echo "{{.__TF_HEADER_LINE}}"
+          echo ""
+    desc: 'Run CI pipeline for specific build system and compiler'
+    silent: true
+    summary: |
+      Run validation for specific build system and compiler
+
+      Runs the complete CI pipeline:
+        1. Format code
+        2. Clean build artifacts
+        3. Build project
+        4. Run linters
+        5. Run application
+        6. Clean and rebuild for tests
+        7. Run tests
+        8. Build documentation
+
+      Variables:
+        CPP_BUILD_SYSTEM: Build system to use
+        CPP_COMPILER:     Compiler to use
+
+      Examples:
+        task validate:by:build-system:compiler \
+          CPP_BUILD_SYSTEM=cmake CPP_COMPILER=clang++
+
+  # ============================================================================
+  # Dependency Tasks (re-export from _deps module)
+  # ============================================================================
+
+  deps:sync:
+    desc: 'Install all project dependencies'
+    cmds:
+      - task: deps:sync:mise
+      - task: deps:sync:npm
+      - task: deps:sync:uv
+
+  deps:sync:mise:
+    cmds:
+      - task: _deps:sync:mise
+
+  deps:sync:npm:
+    cmds:
+      - task: _deps:sync:npm
+
+  deps:sync:uv:
+    cmds:
+      - task: _deps:sync:uv
+
+  deps:clean:
+    desc: 'Clean all project dependencies'
+    cmds:
+      - task: deps:clean:mise
+      - task: deps:clean:npm
+      - task: deps:clean:uv
+
+  deps:clean:mise:
+    cmds:
+      - task: _deps:clean:mise
+
+  deps:clean:npm:
+    cmds:
+      - task: _deps:clean:npm
+
+  deps:clean:uv:
+    cmds:
+      - task: _deps:clean:uv
+
+  deps:refresh:
+    desc: 'Refresh all project dependencies'
+    cmds:
+      - task: deps:refresh:mise
+      - task: deps:refresh:npm
+      - task: deps:refresh:uv
+
+  deps:refresh:mise:
+    cmds:
+      - task: _deps:refresh:mise
+
+  deps:refresh:npm:
+    cmds:
+      - task: _deps:refresh:npm
+
+  deps:refresh:uv:
+    cmds:
+      - task: _deps:refresh:uv

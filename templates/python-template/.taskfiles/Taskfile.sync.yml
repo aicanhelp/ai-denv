@@ -1,0 +1,211 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# ============================================================================
+# Sync Tasks - Synchronize files from generic template
+# ============================================================================
+# This file contains tasks for syncing shared files from the generic template
+# to other template projects.
+#
+# Uses Task's built-in core utilities (cp, mkdir, rm, etc.) which work
+# cross-platform without requiring external shell installations.
+# ============================================================================
+version: '3'
+
+vars:
+  # Default path to generic template (sibling directory)
+  GENERIC_PATH: '{{.GENERIC_PATH | default "../generic"}}'
+
+  # File lists for sync tasks
+  SYNC_TASKFILES:
+    - Taskfile.common.yml
+    - Taskfile.deps.yml
+    - Taskfile.quality.yml
+    - Taskfile.sync.yml
+
+  SYNC_SCRIPTS:
+    - shlint.py
+    - pwshlint.py
+    - fix-mise-pwsh.sh
+    - fix-mise-pwsh.ps1
+
+  SYNC_SCRIPTS_PYLIB:
+    - __init__.py
+    - linter.py
+    - file_finder.py
+
+  SYNC_CONFIG:
+    - .shellcheckrc
+    - .jscpd.json
+    - prettier.config.mjs
+
+  SYNC_GITHUB_ISSUE_TEMPLATES:
+    - Bug.md
+    - Feature.md
+    - Documentation.md
+    - Question.md
+    - config.yml
+
+  SYNC_GITHUB_PR_TEMPLATES:
+    - Bug_fix.md
+    - Feature.md
+    - Documentation.md
+    - Refactor.md
+
+  SYNC_GITHUB_ROOT:
+    - ISSUE_TEMPLATE.md
+    - PULL_REQUEST_TEMPLATE.md
+    - dependabot.yml
+
+tasks:
+  # ==========================================================================
+  # Internal Helper Task
+  # ==========================================================================
+
+  copy-file:
+    internal: true
+    requires:
+      vars: [SRC, DEST]
+    cmd: cp "{{.SRC}}" "{{.DEST}}"
+
+  # ==========================================================================
+  # Main Sync Task
+  # ==========================================================================
+
+  from:generic:
+    desc: 'Sync shared files from generic template'
+    summary: |
+      Sync shared files from the generic template
+
+      This task copies all shared configuration files, scripts, and
+      taskfile modules from the generic template to the current project.
+
+      Files synced:
+        - .taskfiles/*.yml (Taskfile modules)
+        - .scripts/*.py, .scripts/pylib/* (Python linter scripts)
+        - .scripts/*.sh, .scripts/*.ps1 (Shell scripts)
+        - .shellcheckrc, .jscpd.json, prettier.config.mjs
+        - .github/ISSUE_TEMPLATE/*, .github/PULL_REQUEST_TEMPLATE/*
+        - .github/dependabot.yml
+
+      Variables:
+        GENERIC_PATH: Path to generic template (default: ../generic)
+
+      Examples:
+        task sync:from:generic
+        task sync:from:generic GENERIC_PATH=/path/to/generic
+    cmds:
+      - task: from:generic:taskfiles
+      - task: from:generic:scripts
+      - task: from:generic:config
+      - task: from:generic:github
+      - cmd: |
+          echo ""
+          echo "{{.__TF_HEADER_LINE}}"
+          echo "Sync from generic completed successfully"
+          echo "{{.__TF_HEADER_LINE}}"
+          echo ""
+
+  # ==========================================================================
+  # Individual Sync Tasks
+  # ==========================================================================
+
+  from:generic:taskfiles:
+    desc: 'Sync .taskfiles from generic template'
+    summary: |
+      Sync Taskfile modules from generic template
+
+      Copies .taskfiles/*.yml from generic to current project.
+
+      Examples:
+        task sync:from:generic:taskfiles
+    cmds:
+      - cmd: |
+          echo "Syncing .taskfiles..."
+          mkdir -p .taskfiles
+      - for:
+          var: SYNC_TASKFILES
+        task: copy-file
+        vars:
+          SRC: '{{.GENERIC_PATH}}/.taskfiles/{{.ITEM}}'
+          DEST: '.taskfiles/{{.ITEM}}'
+      - cmd: echo "  .taskfiles synced"
+
+  from:generic:scripts:
+    desc: 'Sync .scripts from generic template'
+    summary: |
+      Sync Python linting scripts from generic template
+
+      Copies .scripts/*.py and .scripts/pylib/* from generic.
+
+      Examples:
+        task sync:from:generic:scripts
+    cmds:
+      - cmd: |
+          echo "Syncing .scripts..."
+          mkdir -p .scripts/pylib
+      - for:
+          var: SYNC_SCRIPTS
+        task: copy-file
+        vars:
+          SRC: '{{.GENERIC_PATH}}/.scripts/{{.ITEM}}'
+          DEST: '.scripts/{{.ITEM}}'
+      - for:
+          var: SYNC_SCRIPTS_PYLIB
+        task: copy-file
+        vars:
+          SRC: '{{.GENERIC_PATH}}/.scripts/pylib/{{.ITEM}}'
+          DEST: '.scripts/pylib/{{.ITEM}}'
+      - cmd: echo "  .scripts synced"
+
+  from:generic:config:
+    desc: 'Sync config files from generic template'
+    summary: |
+      Sync configuration files from generic template
+
+      Copies .shellcheckrc, .jscpd.json, prettier.config.mjs from generic.
+
+      Examples:
+        task sync:from:generic:config
+    cmds:
+      - cmd: echo "Syncing config files..."
+      - for:
+          var: SYNC_CONFIG
+        task: copy-file
+        vars:
+          SRC: '{{.GENERIC_PATH}}/{{.ITEM}}'
+          DEST: '{{.ITEM}}'
+      - cmd: echo "  config files synced"
+
+  from:generic:github:
+    desc: 'Sync GitHub templates from generic template'
+    summary: |
+      Sync GitHub issue/PR templates from generic template
+
+      Copies .github/ISSUE_TEMPLATE/*, .github/PULL_REQUEST_TEMPLATE/*,
+      and .github/dependabot.yml from generic.
+
+      Examples:
+        task sync:from:generic:github
+    cmds:
+      - cmd: |
+          echo "Syncing GitHub templates..."
+          mkdir -p .github/ISSUE_TEMPLATE
+          mkdir -p .github/PULL_REQUEST_TEMPLATE
+      - for:
+          var: SYNC_GITHUB_ISSUE_TEMPLATES
+        task: copy-file
+        vars:
+          SRC: '{{.GENERIC_PATH}}/.github/ISSUE_TEMPLATE/{{.ITEM}}'
+          DEST: '.github/ISSUE_TEMPLATE/{{.ITEM}}'
+      - for:
+          var: SYNC_GITHUB_PR_TEMPLATES
+        task: copy-file
+        vars:
+          SRC: '{{.GENERIC_PATH}}/.github/PULL_REQUEST_TEMPLATE/{{.ITEM}}'
+          DEST: '.github/PULL_REQUEST_TEMPLATE/{{.ITEM}}'
+      - for:
+          var: SYNC_GITHUB_ROOT
+        task: copy-file
+        vars:
+          SRC: '{{.GENERIC_PATH}}/.github/{{.ITEM}}'
+          DEST: '.github/{{.ITEM}}'
+      - cmd: echo "  GitHub templates synced"

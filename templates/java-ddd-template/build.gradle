@@ -1,0 +1,227 @@
+apply plugin: 'java'
+
+group 'com.hoily.service'
+version '1.0.0'
+sourceCompatibility = 1.8
+
+ext {
+    env = System.getProperty("env") == null ? "development" : System.getProperty("env")
+    mavenUrl = 'https://maven.aliyun.com/repository/public'
+    lombokVersion = '1.18.24'
+    jacksonVersion = '2.13.3'
+    junitVersion = '4.13.2'
+    jmockitVersion = '1.49'
+    guavaVersion = '31.1-jre'
+    commonsCollectionVersion = '3.2.2'
+    commonsLangVersion = '3.12.0'
+    mapstructVersion = '1.5.2.Final'
+    log4jVersion = '1.2.17'
+    apacheLog4jVersion = '2.17.2'
+
+    springBootVersion = '2.7.0'
+    springAspectsVersion = '5.3.21'
+    mysqlConnectorVersion = '8.0.29'
+
+}
+
+buildscript {
+    ext {
+        springBootVersion = '2.7.0'
+        dependencyManagementPluginVersion = '1.0.11.RELEASE'
+        mavenUrl = 'https://maven.aliyun.com/repository/public'
+    }
+    repositories {
+        maven { url "$mavenUrl" }
+        mavenCentral()
+    }
+    dependencies {
+        classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}")
+        classpath("io.spring.gradle:dependency-management-plugin:$dependencyManagementPluginVersion")
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+subprojects {
+    task allDeps(type: DependencyReportTask) {}
+}
+
+allprojects {
+    apply plugin: 'java'
+    apply plugin: 'maven-publish'
+
+    task sourcesJar(type: Jar, dependsOn: classes) {
+        classifier = 'sources'
+        from sourceSets.main.allSource
+    }
+
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                from components.java
+                artifact(sourcesJar) {
+                    classifier = 'sources'
+                }
+                pom.withXml {
+                    asNode().dependencies.dependency.each {
+                        dep ->
+                            if (dep.version.text() == "unspecified") {
+                                dep.getAt('groupId').get(0).setValue(project.group)
+                                dep.getAt('version').get(0).setValue(project.version)
+                            }
+                    }
+                }
+            }
+        }
+    }
+
+    test {
+        jvmArgs "-Dfile.encoding=UTF-8"
+    }
+
+    dependencies {
+        testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+        testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+    }
+}
+
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'idea'
+    apply plugin: 'io.spring.dependency-management'
+
+    version = parent.version
+    group = parent.group
+
+    sourceCompatibility = 1.8
+    targetCompatibility = 1.8
+
+    tasks.withType(JavaCompile) {
+        options.encoding = "UTF-8"
+    }
+
+    configurations {
+        all*.exclude group: "log4j", module: "log4j"
+        all*.exclude group: "org.slf4j", module: "slf4j-log4j12"
+        all*.exclude group: "org.slf4j", module: "log4j-over-slf4j"
+        all*.exclude group: "org.springframework.boot", module: "spring-boot-starter-logging"
+    }
+
+    repositories {
+        maven { url "$mavenUrl" }
+        mavenCentral()
+    }
+
+    sourceSets {
+        main {
+            resources {
+                srcDirs = ["src/main/resources/base", "src/main/resources/$env"]
+            }
+        }
+        test {
+            resources {
+                srcDirs = ["src/test/resources/base", "src/test/resources/$env"]
+            }
+        }
+    }
+
+    dependencies {
+        implementation "org.projectlombok:lombok:$lombokVersion"
+        annotationProcessor "org.projectlombok:lombok:$lombokVersion"
+
+        testImplementation "junit:junit:$junitVersion"
+        testImplementation "org.jmockit:jmockit:$jmockitVersion"
+    }
+
+    def excludedModules = ['jddd-core', 'jellyfish-contract']
+    if (!excludedModules.contains(it.name)) {
+        dependencies {
+            implementation "com.fasterxml.jackson.core:jackson-core:$jacksonVersion"
+            implementation "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
+            implementation "com.fasterxml.jackson.core:jackson-annotations:$jacksonVersion"
+
+            implementation "org.apache.commons:commons-lang3:$commonsLangVersion"
+            implementation "commons-collections:commons-collections:$commonsCollectionVersion"
+            implementation "com.google.guava:guava:$guavaVersion"
+            implementation "org.mapstruct:mapstruct-jdk8:$mapstructVersion"
+            implementation "org.mapstruct:mapstruct:$mapstructVersion"
+            annotationProcessor "org.mapstruct:mapstruct-processor:$mapstructVersion"
+
+            implementation "log4j:log4j:$log4jVersion"
+            implementation "org.apache.logging.log4j:log4j-core:$apacheLog4jVersion"
+            implementation "org.apache.logging.log4j:log4j-api:$apacheLog4jVersion"
+            implementation "org.apache.logging.log4j:log4j-slf4j-impl:$apacheLog4jVersion"
+
+            testImplementation "org.springframework.boot:spring-boot-starter-test:$springBootVersion"
+            testImplementation "org.springframework.boot:spring-boot-starter-log4j2:$springBootVersion"
+        }
+    }
+
+    excludedModules = ['jddd-core', 'jellyfish-contract', 'jellyfish-domain']
+    if (!excludedModules.contains(it.name)) {
+        dependencies {
+            implementation "org.springframework.boot:spring-boot-starter:$springBootVersion"
+            implementation "org.springframework.boot:spring-boot-starter-web:$springBootVersion"
+            implementation "org.springframework.boot:spring-boot-starter-aop:$springBootVersion"
+            implementation "org.springframework:spring-aspects:$springAspectsVersion"
+
+            implementation "mysql:mysql-connector-java:$mysqlConnectorVersion"
+        }
+    }
+}
+
+project(":jddd-core") {
+    version = '0.0.1'
+    dependencies {
+
+    }
+}
+
+project(":jellyfish-contract") {
+    version = '0.0.1-SNAPSHOT'
+    dependencies {
+
+    }
+}
+
+project(":jellyfish-domain") {
+    dependencies {
+        implementation project(":jddd-core")
+    }
+}
+
+project(":jellyfish-infrastructure") {
+    dependencies {
+        implementation project(":jellyfish-domain")
+    }
+}
+
+project(":jellyfish-application") {
+    dependencies {
+        implementation project(":jellyfish-domain")
+        implementation project(":jellyfish-infrastructure")
+        apiElements project(":jellyfish-contract")
+    }
+}
+
+project(":jellyfish-api") {
+    jar.archiveFileName = "jellyfish-api.jar"
+
+    apply plugin: 'org.springframework.boot'
+    dependencies {
+        implementation project(":jellyfish-application")
+
+    }
+}
+
+project(":jellyfish-task") {
+    jar.archiveFileName = "jellyfish-task.jar"
+
+    apply plugin: 'org.springframework.boot'
+    dependencies {
+        implementation project(":jellyfish-application")
+
+    }
+}

@@ -1,0 +1,38 @@
+dependencies = {}
+dev-dependencies = {}
+
+[package]
+name = "rust-template"
+version = "1.2.3"
+authors = ["Templ Project"]
+edition = "2021"
+rust-version = "1.75.0"
+description = "A Rust Bootstrap/Template project using modern tools and best practices"
+readme = "README.md"
+homepage = "https://github.com/templ-project/rust"
+repository = "https://github.com/templ-project/rust"
+license = "MIT"
+keywords = ["template", "bootstrap", "rust", "cargo"]
+categories = ["development-tools"]
+
+[[bin]]
+name = "rust-template"
+path = "src/main.rs"
+
+[lib]
+name = "rust_template"
+path = "src/lib.rs"
+
+[profile.dev]
+opt-level = 0
+debug = true
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.test]
+opt-level = 0
+debug = true

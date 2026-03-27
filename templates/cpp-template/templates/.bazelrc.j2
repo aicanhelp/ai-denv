@@ -1,0 +1,147 @@
+# SDK flags are set via environment variables in .mise.toml (SDKROOT, CFLAGS, CXXFLAGS, LDFLAGS)
+build --repo_env=BAZEL_LLVM={{ os_env("LLVM_ROOT") }}
+
+# Common C++ settings
+{% if os() == 'windows' %}
+# Windows uses MSVC-style flags (both MSVC and clang-cl understand these)
+build --cxxopt=/std:c++20
+build --cxxopt=/W3
+{% else %}
+# Unix-style flags for Clang/GCC on Linux/macOS
+build --cxxopt=-std=c++20
+build --cxxopt=-Wall
+build --cxxopt=-Wextra
+build --cxxopt=-Wpedantic
+{% endif %}
+
+# Use the selected compiler (set via CPP_COMPILER environment variable)
+{% if os() == 'windows' and compiler == 'msvc' %}
+# Windows MSVC - let Bazel auto-detect
+{% elif compiler == 'g++' %}
+build --repo_env=CC=gcc
+build --repo_env=CXX=g++
+{% else %}
+# Default to Clang
+build --repo_env=CC=clang
+build --repo_env=CXX=clang++
+{% endif %}
+
+# Inherit environment variables from mise (SDK paths for macOS)
+build --action_env=SDKROOT
+build --action_env=CFLAGS
+build --action_env=CXXFLAGS
+build --action_env=LDFLAGS
+
+# macOS-specific settings
+build:macos --cxxopt=-stdlib=libc++
+build:macos --linkopt=-stdlib=libc++
+build:macos --linkopt=-lc++abi
+
+# Debug configuration
+build:debug --compilation_mode=dbg
+build:debug --copt=-g
+build:debug --copt=-O0
+build:debug --strip=never
+
+# Debug with sanitizers (Linux/macOS)
+build:debug --copt=-fsanitize=address,undefined
+build:debug --linkopt=-fsanitize=address,undefined
+
+# Release configuration
+build:release --compilation_mode=opt
+build:release --copt=-O3
+build:release --copt=-DNDEBUG
+build:release --strip=always
+
+# Coverage configuration
+# NOTE: `bazel coverage` is only supported with g++ on Linux.
+# macOS and Windows are not supported due to toolchain limitations.
+# - macOS: Bazel uses Apple's linker which doesn't support GCC's gcov properly
+# - LLVM/Clang: incompatible coverage format
+# - MSVC: incompatible coverage format
+{% if os() == 'linux' and compiler == 'g++' %}
+# Use gcc/gcov for coverage - requires manual flags as Bazel doesn't auto-instrument C++
+build:coverage --copt=-g
+build:coverage --copt=-O0
+build:coverage --copt=-fprofile-arcs
+build:coverage --copt=-ftest-coverage
+build:coverage --linkopt=-fprofile-arcs
+build:coverage --linkopt=-ftest-coverage
+build:coverage --linkopt=-lgcov
+build:coverage --instrumentation_filter="^//"
+build:coverage --instrument_test_targets
+build:coverage --combined_report=lcov
+build:coverage --collect_code_coverage
+# Ensure we use gcc/gcov coverage, not LLVM coverage
+coverage --experimental_use_llvm_covmap=false
+{% endif %}
+
+# Test configuration
+test --test_output=errors
+test --test_summary=detailed
+
+# Enable color output
+common --color=yes
+
+# Show test errors
+test --test_verbose_timeout_warnings
+
+# Build optimizations
+build --jobs=auto
+build --show_progress_rate_limit=0.5
+
+# Use a custom output directory
+build --symlink_prefix=bazel-
+
+# Cache settings
+build --disk_cache=~/.cache/bazel
+
+# Platform-specific configuration
+build:linux --config=debug
+build:macos --config=debug
+build:windows --config=debug
+
+# Windows-specific settings
+{% if os() == 'windows' %}
+# Manual MSVC configuration to bypass auto-detection issues
+{% if compiler == 'msvc' %}
+# Set MSVC paths manually using detected environment variables
+build --action_env=BAZEL_VC
+build --action_env=BAZEL_VC_FULL_VERSION
+build --cpu=x64_windows
+build --compiler=msvc-cl
+
+# Provide essential Windows environment variables
+build --action_env=INCLUDE
+build --action_env=LIB
+build --action_env=LIBPATH
+build --action_env=PATH
+
+# Windows SDK environment
+build --action_env=WINDOWSSDKDIR
+build --action_env=WINDOWSSDKVERSION
+{% else %}
+# Clang configuration on Windows (using clang-cl)
+build --cpu=x64_windows
+build --compiler=clang-cl
+build --action_env=CC={{ compiler }}
+build --action_env=CXX={{ compiler }}
+
+# Pass through necessary environment variables for SDK/linker
+build --action_env=BAZEL_LLVM
+build --action_env=LLVM_ROOT
+build --action_env=PATH
+build --action_env=INCLUDE
+build --action_env=LIB
+build --action_env=LIBPATH
+{% endif %}
+
+# Common Windows environment
+build --action_env=TMP
+build --action_env=TEMP
+build --action_env=USERPROFILE
+
+# Disable problematic features on Windows
+build:debug --copt=-O0
+build:debug --strip=never
+{% endif %}

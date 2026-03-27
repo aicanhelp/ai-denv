@@ -1,0 +1,33 @@
+# Ignore files that don't need formatting (alphabetically sorted)
+*.backup
+*.go
+*.lock
+*.log
+*.mod
+*.ps1
+*.py
+*.sh
+*.sum
+.editorconfig
+.eslintignore
+.gitattributes
+.github/
+.gitignore
+.husky/
+.jscpd/
+.mise.lock
+.prettierignore
+.PSScriptAnalyzerSettings.psd1
+.ruff_cache/
+.shellcheckrc
+.venv/
+_uvx_install/
+# changelog is automatically generated, it cannot be linted
+CHANGELOG.md
+coverage/
+dist/
+docs-html/
+LICENSE
+package-lock.json
+VERSION*
+version*

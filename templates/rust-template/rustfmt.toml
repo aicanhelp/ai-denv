@@ -1,0 +1,44 @@
+# Rust formatting configuration
+# Based on Rust API Guidelines and best practices
+# Only stable rustfmt options (nightly features removed)
+
+edition = "2021"
+max_width = 100
+hard_tabs = false
+tab_spaces = 4
+newline_style = "Unix"
+use_small_heuristics = "Default"
+reorder_imports = true
+reorder_modules = true
+remove_nested_parens = true
+merge_derives = true
+use_try_shorthand = true
+use_field_init_shorthand = true
+force_explicit_abi = true
+match_block_trailing_comma = false
+
+# Note: The following options require nightly Rust and are commented out:
+# empty_item_single_line = true
+# struct_lit_single_line = true
+# fn_single_line = false
+# where_single_line = false
+# imports_indent = "Block"
+# imports_layout = "Mixed"
+# group_imports = "StdExternalCrate"
+# normalize_comments = true
+# normalize_doc_attributes = true
+# wrap_comments = true
+# format_code_in_doc_comments = true
+# comment_width = 80
+# trailing_comma = "Vertical"
+# trailing_semicolon = true
+# type_punctuation_density = "Wide"
+# space_before_colon = false
+# space_after_colon = true
+# spaces_around_ranges = false
+# binop_separator = "Front"
+# overflow_delimited_expr = false
+# format_strings = true
+# format_macro_matchers = true
+# format_macro_bodies = true
+# hex_literal_case = "Preserve"

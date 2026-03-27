@@ -1,0 +1,128 @@
+name: CI » Validate & Build
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: Operating system to run on
+        required: false
+        type: string
+        default: ubuntu-latest
+      jobs:
+        description: Comma-separated list of jobs to run (build, lint, test, duplicate-check)
+        required: false
+        type: string
+        default: build,lint,test
+
+jobs:
+  build:
+    runs-on: ${{ inputs.runs-on }}
+    if: contains(inputs.jobs, 'build')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-tools
+
+      - name: Build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONIOENCODING: utf-8
+        run: task build
+        shell: bash
+
+      - name: Get project info
+        id: project
+        shell: bash
+        run: |
+          # TODO: define a better name if repository name does not fit
+          NAME="${{ github.event.repository.name }}"
+
+          # Get version from VERSION file
+          if [ -f VERSION ]; then
+            VERSION=$(cat VERSION | tr -d '[:space:]')
+          else
+            VERSION="0.0.0"
+          fi
+          echo "name=$NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Project: $NAME v$VERSION"
+
+      - name: Create distribution archives
+        if: inputs.runs-on == 'ubuntu-latest'
+        id: archive
+        shell: bash
+        run: |
+          mkdir -p dist
+          NAME="${{ steps.project.outputs.name }}"
+          VERSION="${{ steps.project.outputs.version }}"
+
+          # Create staging directory with scripts and docs
+          mkdir -p staging
+          cp -r src/* staging/
+          cp README.md staging/ 2>/dev/null || true
+          cp LICENSE staging/ 2>/dev/null || true
+
+          # Create .tar.gz archive
+          TARBALL="dist/${NAME}-${VERSION}.tar.gz"
+          tar -czf "$TARBALL" -C staging .
+          echo "Created: $TARBALL"
+
+          # Create .zip archive
+          ZIPFILE="dist/${NAME}-${VERSION}.zip"
+          (cd staging && zip -r "../$ZIPFILE" .)
+          echo "Created: $ZIPFILE"
+
+          ls -lah dist/
+
+      - name: Upload distribution artifacts
+        if: inputs.runs-on == 'ubuntu-latest'
+        uses: actions/upload-artifact@v6
+        with:
+          name: dist-archives
+          path: dist/*
+          retention-days: 1
+
+  lint:
+    runs-on: ${{ inputs.runs-on }}
+    if: always() && contains(inputs.jobs, 'lint') && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-tools
+
+      - name: Check Code Formatting
+        env:
+          PYTHONIOENCODING: utf-8
+        run: task format:check
+        shell: bash
+
+      - name: Lint Code
+        env:
+          PYTHONIOENCODING: utf-8
+        run: task lint:check
+        shell: bash
+
+  test:
+    runs-on: ${{ inputs.runs-on }}
+    if: always() && contains(inputs.jobs, 'test') && (needs.lint.result == 'success' || needs.lint.result == 'skipped')
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-tools
+
+      - name: Run Tests
+        env:
+          PYTHONIOENCODING: utf-8
+        run: task test test:gen-coverage
+        shell: bash
+
+  duplicate-check:
+    if: inputs.runs-on == 'ubuntu-latest'
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+
+      - name: Run duplicate check
+        run: npm install && npm run duplicate-check

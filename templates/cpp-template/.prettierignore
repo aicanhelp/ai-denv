@@ -1,0 +1,51 @@
+# Ignore files that don't need formatting (alphabetically sorted)
+*.bats
+*.bzl
+*.cpp
+*.hpp
+*.j2
+*.lock
+*.log
+*.lua
+*.ps1
+*.py
+*.sh
+.bazelignore
+.bazelrc
+.clang-format
+.clang-tidy
+.editorconfig
+.eslintignore
+.gitattributes
+.github/
+.gitignore
+.husky/
+.jscpd/
+.mise.lock
+.prettierignore
+.PSScriptAnalyzerSettings.psd1
+.ruff_cache/
+.shellcheckrc
+.venv/
+_uvx_install/
+# build system files
+BUILD
+BUILD.bazel
+CMakeLists.txt
+MODULE.bazel
+MODULE.bazel.lock
+templates/
+WORKSPACE
+xmake.lua
+# changelog is automatically generated, it cannot be linted
+CHANGELOG.md
+coverage/
+dist/
+docs-html/
+LICENSE
+package-lock.json
+# build outputs
+build/
+out/
+tests/BUILD
+VERSION

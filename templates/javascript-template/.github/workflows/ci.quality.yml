@@ -1,0 +1,131 @@
+name: CI » Validate & Build
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: Operating system to run on
+        required: false
+        type: string
+        default: ubuntu-latest
+      jobs:
+        description: Comma-separated list of jobs to run (build, lint, test, duplicate-check)
+        required: false
+        type: string
+        default: build,lint,test
+
+jobs:
+  build:
+    runs-on: ${{ inputs.runs-on }}
+    if: contains(inputs.jobs, 'build')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-tools
+
+      - name: Build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONIOENCODING: utf-8
+        run: task build
+        shell: bash
+
+      - name: Get project info
+        id: project
+        shell: bash
+        run: |
+          # Get name from package.json
+          NAME=$(mise exec -- node -p "require('./package.json').name.replace('@templ-project/', '')")
+
+          # Get version from package.json
+          VERSION=$(mise exec -- node -p "require('./package.json').version")
+          echo "name=$NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Project: $NAME v$VERSION"
+
+      - name: Create distribution archives
+        if: inputs.runs-on == 'ubuntu-latest'
+        id: archive
+        shell: bash
+        run: |
+          mkdir -p dist
+          NAME="${{ steps.project.outputs.name }}"
+          VERSION="${{ steps.project.outputs.version }}"
+
+          # Create npm package tarball
+          mise exec -- npm pack
+          mv *.tgz dist/
+
+          # Create dist tarball if dist directory exists
+          if [ -d dist/esm ] || [ -d dist/cjs ]; then
+            tar -czf "dist/${NAME}-${VERSION}-dist.tar.gz" dist/esm dist/cjs dist/browser dist/iife 2>/dev/null || true
+            echo "Created distribution archive"
+          fi
+
+          ls -lah dist/
+
+      - name: Upload distribution artifacts
+        if: inputs.runs-on == 'ubuntu-latest'
+        uses: actions/upload-artifact@v6
+        with:
+          name: dist-archives
+          path: dist/*
+          retention-days: 1
+
+  lint:
+    runs-on: ${{ inputs.runs-on }}
+    if: always() && contains(inputs.jobs, 'lint') && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-tools
+
+      - name: Check Code Formatting
+        env:
+          PYTHONIOENCODING: utf-8
+        run: task format:check
+        shell: bash
+
+      - name: Lint Code
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONIOENCODING: utf-8
+        run: task lint:check
+        shell: bash
+
+  test:
+    runs-on: ${{ inputs.runs-on }}
+    if: always() && contains(inputs.jobs, 'test') && (needs.lint.result == 'success' || needs.lint.result == 'skipped')
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-tools
+
+      - name: Run Tests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONIOENCODING: utf-8
+        run: task test
+        shell: bash
+
+      - name: Run Tests with Coverage
+        if: inputs.runs-on == 'ubuntu-latest'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONIOENCODING: utf-8
+        run: task test:coverage
+        shell: bash
+
+  duplicate-check:
+    if: inputs.runs-on == 'ubuntu-latest' && contains(inputs.jobs, 'duplicate-check')
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-tools
+
+      - name: Run duplicate check
+        env:
+          PYTHONIOENCODING: utf-8
+        run: task duplicate-check
+        shell: bash

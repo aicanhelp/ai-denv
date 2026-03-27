@@ -1,0 +1,88 @@
+name: CI » Release
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Tag for the release (e.g., v1.2.3)
+        required: true
+        type: string
+      prerelease:
+        description: Mark as pre-release
+        required: false
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag for the release (e.g., v1.2.3)
+        required: true
+        type: string
+      prerelease:
+        description: Mark as pre-release
+        required: false
+        type: boolean
+        default: false
+      skip_build:
+        description: Skip build (use existing artifact from same workflow run)
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  # Build the release artifact
+  build:
+    name: Build
+    if: github.event_name != 'workflow_dispatch' || !inputs.skip_build
+    uses: ./.github/workflows/ci.quality.yml
+    permissions:
+      contents: write
+    with:
+      runs-on: ubuntu-latest
+      jobs: build
+
+  # Publish the release
+  release:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: dist-archives
+          path: release-assets
+
+      - name: List release assets
+        run: |
+          echo "Release assets:"
+          ls -lah release-assets/
+
+      - name: Read changelog
+        run: |
+          if [ -f CHANGELOG.md ]; then
+            echo "Using generated CHANGELOG.md"
+          else
+            echo "Release ${{ inputs.tag }}" > CHANGELOG.md
+          fi
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          name: Release ${{ inputs.tag }}
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: ${{ inputs.prerelease }}
+          files: release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

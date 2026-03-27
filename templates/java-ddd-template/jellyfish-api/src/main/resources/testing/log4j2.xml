@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+    <Properties>
+        <Property name="PID">????</Property>
+        <Property name="APP_NAME">jellyfish-api</Property>
+        <Property name="LOG_EXCEPTION_CONVERSION_WORD">%xEx</Property>
+        <Property name="LOG_LEVEL_PATTERN">%5p</Property>
+        <Property name="LOG_PATTERN">[$${env:HOST:-localhost}][${sys:app.name:-myApp}][%d{yyyy-MM-dd
+            HH:mm:ss.SSS}][${LOG_LEVEL_PATTERN}][${sys:PID}][%15.15t][%-40.40c{1.}] :
+            [%X{logId}][%X{PTRACER-TRACE-UUID}][%X{PTRACER-SPAN-UUID}]%m%n${sys:LOG_EXCEPTION_CONVERSION_WORD}
+        </Property>
+        <Property name="LOG_PATH">./logs</Property>
+    </Properties>
+    <DynamicThresholdFilter key="logLevel" defaultThreshold="ERROR" onMatch="ACCEPT" onMismatch="DENY">
+        <KeyValuePair key="TRACE" value="TRACE"/>
+        <KeyValuePair key="DEBUG" value="DEBUG"/>
+        <KeyValuePair key="INFO" value="INFO"/>
+        <KeyValuePair key="WARN" value="WARN"/>
+        <KeyValuePair key="ERROR" value="ERROR"/>
+        <KeyValuePair key="FATAL" value="FATAL"/>
+        <KeyValuePair key="OFF" value="OFF"/>
+    </DynamicThresholdFilter>
+    <Appenders>
+        <RollingFile name="AllFile" fileName="${LOG_PATH}/${APP_NAME}.log"
+                     filePattern="${LOG_PATH}/$${date:yyyy-MM}/${APP_NAME}-%d{MM-dd-yyyy}-%i.log">
+            <PatternLayout pattern="${LOG_PATTERN}" charset="utf-8"/>
+            <Policies>
+                <OnStartupTriggeringPolicy/>
+                <SizeBasedTriggeringPolicy size="20 MB"/>
+                <TimeBasedTriggeringPolicy/>
+            </Policies>
+            <DefaultRolloverStrategy max="100"/>
+        </RollingFile>
+
+        <Kafka name="Kafka" topic="${sys:log4j2.kafka.topic}">
+            <Property name="bootstrap.servers">${sys:log4j2.kafka.bootstrap.servers}</Property>
+            <Property name="acks">0</Property>
+            <PatternLayout pattern="${LOG_PATTERN}"/>
+        </Kafka>
+
+        <Async name="AsyncKafka" bufferSize="1024" blocking="false">
+            <AppenderRef ref="Kafka"/>
+        </Async>
+
+        <Console name="Console" target="SYSTEM_OUT" follow="true">
+            <PatternLayout pattern="${LOG_PATTERN}"/>
+        </Console>
+
+        <Async name="AsyncConsole" bufferSize="1024" blocking="false">
+            <AppenderRef ref="Console"/>
+        </Async>
+
+        <CatAppender name="CatAppender"/>
+    </Appenders>
+    <Loggers>
+        <Logger name="org.apache.catalina.startup.DigesterFactory" level="error"/>
+        <Logger name="org.apache.catalina.util.LifecycleBase" level="error"/>
+        <Logger name="org.apache.coyote.http11.Http11NioProtocol" level="warn"/>
+        <logger name="org.apache.sshd.common.util.SecurityUtils" level="warn"/>
+        <Logger name="org.apache.tomcat.util.net.NioSelectorPool" level="warn"/>
+        <Logger name="org.crsh.plugin" level="warn"/>
+        <logger name="org.crsh.ssh" level="warn"/>
+        <Logger name="org.eclipse.jetty.util.component.AbstractLifeCycle" level="error"/>
+        <Logger name="org.hibernate.validator.internal.util.Version" level="warn"/>
+        <logger name="org.springframework.boot.actuate.autoconfigure.CrshAutoConfiguration" level="warn"/>
+        <logger name="org.springframework.boot.actuate.endpoint.jmx" level="warn"/>
+        <logger name="com.alibaba.dubbo.common.logger.LoggerFactory" level="info"/>
+        <Root level="info">
+            <AppenderRef ref="AsyncKafka"/>
+            <AppenderRef ref="AsyncConsole" level="error"/>
+            <AppenderRef ref="CatAppender"/>
+        </Root>
+    </Loggers>
+</Configuration>

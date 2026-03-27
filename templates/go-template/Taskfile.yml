@@ -1,0 +1,790 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# ============================================================================
+# Go Template - Taskfile
+# ============================================================================
+# This is the main Taskfile for the Go template project.
+# Common tasks are imported from .taskfiles/ modules.
+# ============================================================================
+version: '3'
+
+includes:
+  # ==========================================================================
+  # Shared Modules (sync from generic using: task sync:from:generic)
+  # ==========================================================================
+  common:
+    taskfile: .taskfiles/Taskfile.common.yml
+    internal: true
+  _deps:
+    taskfile: .taskfiles/Taskfile.deps.yml
+    internal: true
+  quality:
+    taskfile: .taskfiles/Taskfile.quality.yml
+    internal: true
+  sync:
+    taskfile: .taskfiles/Taskfile.sync.yml
+
+vars:
+  # Go project settings
+  GO_PROJECT_NAME: '{{default .GO_PROJECT_NAME "go-template"}}'
+  GO_BUILD_TYPE: '{{default .GO_BUILD_TYPE "release"}}'
+
+  # Build targets - loaded from .build-targets.yml
+  GO_BUILD_TARGETS_RAW:
+    sh: cat .build-targets.yml
+  GO_BUILD_TARGETS:
+    ref: '(fromYaml .GO_BUILD_TARGETS_RAW).targets'
+
+tasks:
+  # ==========================================================================
+  # Build Tasks
+  # ==========================================================================
+
+  build:
+    desc: 'Build for current platform (output: build/<name>_<os>_<arch>)'
+    summary: |
+      Build the application for the current platform
+
+      Compiles the Go application for the current OS and architecture.
+      Output binary is placed in build/<project>_<os>_<arch>[.exe].
+
+      Variables:
+        GO_BUILD_TYPE: Build mode - 'release' (default, optimized) or 'debug'
+
+      Examples:
+        task build                           # Build release for current platform
+        task build GO_BUILD_TYPE=debug       # Build debug version
+    sources:
+      - '**/*.go'
+      - go.mod
+      - go.sum
+    vars:
+      TARGET_ARCH: '{{ARCH}}'
+      TARGET_OS: '{{OS}}'
+    cmds:
+      - task: build:target
+        vars:
+          TARGET_ARCH: '{{.TARGET_ARCH}}'
+          TARGET_OS: '{{.TARGET_OS}}'
+
+  build:all:
+    desc: 'Build all architecture targets for current OS'
+    summary: |
+      Build all architecture targets for the current OS
+
+      Iterates through targets defined in .build-targets.yml and builds
+      all architectures that match the current operating system.
+      Non-matching OS targets are automatically skipped.
+
+      Output binaries are placed in build/<project>_<os>_<arch>[.exe].
+
+      Examples:
+        task build:all                       # Build all archs for current OS
+        task build:all GO_BUILD_TYPE=debug   # Build all archs in debug mode
+
+      On macOS, this builds: darwin/amd64, darwin/arm64
+      On Linux, this builds: linux/amd64, linux/386
+      On Windows, this builds: windows/amd64, windows/386
+    cmds:
+      - for:
+          var: GO_BUILD_TARGETS
+        task: build:target
+        vars:
+          TARGET_ARCH: '{{.ITEM.arch}}'
+          TARGET_OS: '{{.ITEM.os}}'
+
+  build:dist:
+    desc: 'Create distribution archives for all builds in build/'
+    summary: |
+      Create distribution archives for all builds
+
+      Creates compressed archives for all binaries in the build/ directory.
+      Unix binaries are packaged as .tar.gz, Windows binaries as .zip.
+      Output archives are placed in dist/.
+
+      This task automatically runs build:all first to ensure binaries exist.
+
+      Examples:
+        task build:dist                      # Build all and create archives
+
+      Output:
+        dist/go-template_darwin_amd64.tar.gz
+        dist/go-template_darwin_arm64.tar.gz
+        dist/go-template_windows_amd64.zip (if built on Windows)
+    deps:
+      - build:all
+    sources:
+      - build/*
+    cmds:
+      - cmd: .scripts/build-dist.sh "{{.GO_PROJECT_NAME}}"
+        platforms: [linux, darwin]
+      - cmd: '{{.__TF_MISE_E_PWSH_FILE}} .scripts/build-dist.ps1 -ProjectName "{{.GO_PROJECT_NAME}}"'
+        platforms: [windows]
+
+  build:target:
+    desc: 'Build for a specific OS/ARCH target'
+    summary: |
+      Build for a specific OS/ARCH target
+
+      Compiles the application for the specified operating system and
+      architecture combination. Automatically skips if TARGET_OS doesn't
+      match the current OS (cross-OS compilation is not supported).
+
+      Required Variables:
+        TARGET_OS:   Target operating system (linux, darwin, windows)
+        TARGET_ARCH: Target architecture (amd64, arm64, 386)
+
+      Optional Variables:
+        GO_BUILD_TYPE: Build mode - 'release' (default) or 'debug'
+
+      Examples:
+        task build:target TARGET_OS=linux TARGET_ARCH=amd64
+        task build:target TARGET_OS=darwin TARGET_ARCH=arm64 GO_BUILD_TYPE=debug
+
+      Note: This task is typically called by build:all, not directly.
+    requires:
+      vars: [TARGET_OS, TARGET_ARCH]
+    env:
+      GOOS: '{{.TARGET_OS}}'
+      GOARCH: '{{.TARGET_ARCH}}'
+    vars:
+      EXE_EXT: '{{if eq .TARGET_OS "windows"}}.exe{{end}}'
+      OUTPUT_NAME: '{{.GO_PROJECT_NAME}}_{{.TARGET_OS}}_{{.TARGET_ARCH}}{{.EXE_EXT}}'
+    status:
+      # Skip if TARGET_OS doesn't match current OS (returns 0 = up-to-date = skip)
+      - '[ "{{.TARGET_OS}}" != "{{OS}}" ]'
+    cmds:
+      - cmd: |
+          echo "{{.__TF_HEADER_LINE}}"
+          echo "Building {{.GO_PROJECT_NAME}} for {{.TARGET_OS}}/{{.TARGET_ARCH}} in {{.GO_BUILD_TYPE}} mode"
+          echo "{{.__TF_HEADER_LINE}}"
+      - cmd: |
+          mkdir -p build
+          {{.__TF_MISE_E}} go build \
+            {{if eq .GO_BUILD_TYPE "release"}}-ldflags="-s -w"{{end}} \
+            -o build/{{.OUTPUT_NAME}} \
+            ./cmd/cli
+          echo "Built: build/{{.OUTPUT_NAME}}"
+
+  # ==========================================================================
+  # Clean Tasks
+  # ==========================================================================
+
+  clean:
+    desc: 'Clean all build artifacts'
+    summary: |
+      Clean all build artifacts
+
+      Removes all generated files and directories including:
+        - build/        - Compiled binaries
+        - dist/         - Distribution archives
+        - .task/        - Task cache
+        - coverage.*    - Test coverage reports
+        - .jscpd/html   - Duplicate check reports
+        - docs-html/    - Built documentation
+
+      Examples:
+        task clean                           # Remove all artifacts
+    cmds:
+      - |
+        rm -rf \
+            .coverage \
+            .jscpd/html \
+            .task \
+            build \
+            coverage.html \
+            coverage.out \
+            dist \
+            docs-html
+
+  # ==========================================================================
+  # Code Quality Tasks (Project-specific overrides)
+  # ==========================================================================
+
+  format:
+    desc: 'Format code and fix issues'
+    summary: |
+      Format all code and fix issues
+
+      Runs all formatters to automatically fix code style issues:
+        - gofmt for Go files
+        - Prettier for JSON, YAML, Markdown
+        - Ruff for Python files
+
+      Examples:
+        task format                          # Format all code
+    cmds:
+      - task: format:go
+      - task: quality:format:prettier
+      - task: quality:format:ruff
+      - cmd: echo "Code format completed"
+
+  format:check:
+    desc: 'Check code formatting without fixing'
+    summary: |
+      Check code formatting without fixing
+
+      Verifies all code follows formatting standards without making changes.
+      Exits with error if any files need formatting. Useful for CI.
+
+      Examples:
+        task format:check                    # Check all formatting
+    cmds:
+      - task: format:check:go
+      - task: quality:format:check:prettier
+      - task: quality:format:check:ruff
+      - cmd: echo "Code format check completed"
+
+  format:go:
+    desc: 'Format Go code using gofmt'
+    summary: |
+      Format Go code using gofmt
+
+      Formats all Go files and runs go mod tidy to clean up dependencies.
+
+      Examples:
+        task format:go                       # Format Go code
+    silent: true
+    sources:
+      - '**/*.go'
+    cmds:
+      - task: gofmt
+        vars:
+          CLI_ARGS: '-s -w .'
+      - cmd: |
+          {{.__TF_MISE_E}} go mod tidy
+          echo "- Go format completed"
+
+  format:check:go:
+    desc: 'Check Go code formatting'
+    summary: |
+      Check Go code formatting
+
+      Verifies Go files are properly formatted according to gofmt standards.
+
+      Examples:
+        task format:check:go                 # Check Go formatting
+    silent: true
+    cmds:
+      - cmd: |
+          UNFORMATTED=$({{.__TF_MISE_E}} gofmt -l .)
+          if [ -n "$UNFORMATTED" ]; then
+            echo "The following files are not formatted:"
+            echo "$UNFORMATTED"
+            exit 1
+          fi
+          echo "- Go format check completed"
+
+  lint:
+    desc: 'Run linter and fix issues'
+    summary: |
+      Run all linters and fix issues
+
+      Runs all configured linters with auto-fix enabled:
+        - golangci-lint for Go
+        - ESLint for JSON, YAML, Markdown
+        - Pylint for Python
+        - PSScriptAnalyzer for PowerShell
+        - ShellCheck for Bash scripts
+
+      Examples:
+        task lint                            # Lint and fix all code
+    cmds:
+      - task: lint:go
+      - task: quality:lint:eslint
+      - task: quality:lint:pylint
+      - task: quality:lint:pwshlint
+      - task: quality:lint:shlint
+      - cmd: echo "Linting completed"
+
+  lint:check:
+    desc: 'Run linter without fixing'
+    summary: |
+      Run all linters without fixing
+
+      Runs all linters in check-only mode. Exits with error if any
+      issues are found. Useful for CI pipelines.
+
+      Examples:
+        task lint:check                      # Check all code
+    cmds:
+      - task: lint:check:go
+      - task: quality:lint:check:eslint
+      - task: quality:lint:check:pylint
+      - task: quality:lint:check:pwshlint
+      - task: quality:lint:check:shlint
+      - cmd: echo "Linting check completed"
+
+  lint:go:
+    desc: 'Lint Go code using golangci-lint'
+    summary: |
+      Lint Go code using golangci-lint
+
+      Runs golangci-lint with auto-fix enabled on all Go files.
+      Configuration is in .golangci.yml.
+
+      Examples:
+        task lint:go                         # Lint and fix Go code
+    silent: true
+    sources:
+      - '**/*.go'
+    cmds:
+      - task: golangci-lint
+        vars:
+          CLI_ARGS: 'run --fix'
+      - echo "- Go lint completed"
+
+  lint:check:go:
+    desc: 'Check Go code using golangci-lint'
+    summary: |
+      Check Go code using golangci-lint
+
+      Lints Go files without fixing issues.
+
+      Examples:
+        task lint:check:go                   # Check Go code
+    cmds:
+      - task: golangci-lint
+      - echo "- Go lint check completed"
+
+  lint-staged:
+    desc: 'Run linter on staged files and fix issues'
+    cmds:
+      - task: quality:lint-staged
+
+  duplicate-check:
+    desc: 'Check for duplicate code using jscpd'
+    cmds:
+      - task: quality:duplicate-check
+
+  # ==========================================================================
+  # Go-specific Low-level Tasks
+  # ==========================================================================
+
+  gofmt:
+    desc: 'Run gofmt'
+    summary: |
+      Run gofmt
+
+      Low-level task to run gofmt with custom arguments.
+      Typically called by format:go.
+
+      Variables:
+        CLI_ARGS: Arguments to pass to gofmt
+
+      Examples:
+        task gofmt CLI_ARGS="-s -w ."        # Simplify and write
+        task gofmt CLI_ARGS="-l ."           # List unformatted files
+    silent: true
+    sources:
+      - '**/*.go'
+    cmds:
+      - |
+        {{.__TF_MISE_E}} gofmt {{.CLI_ARGS}}
+
+  golangci-lint:
+    desc: 'Run golangci-lint'
+    summary: |
+      Run golangci-lint
+
+      Low-level task to run golangci-lint with custom arguments.
+      Configuration is in .golangci.yml.
+
+      Variables:
+        CLI_ARGS: Arguments to pass to golangci-lint
+
+      Examples:
+        task golangci-lint CLI_ARGS="run --fix"  # Fix issues
+        task golangci-lint CLI_ARGS="run"        # Check only
+    silent: true
+    sources:
+      - '**/*.go'
+    cmds:
+      - |
+        {{.__TF_MISE_E}} golangci-lint {{.CLI_ARGS}}
+
+  audit-check:
+    desc: 'Check for security vulnerabilities in dependencies'
+    summary: |
+      Check for security vulnerabilities in dependencies
+
+      Runs govulncheck to scan all Go dependencies for known security
+      vulnerabilities. Reports any CVEs found in the dependency tree.
+
+      Examples:
+        task audit-check                     # Scan for vulnerabilities
+    cmds:
+      - |
+        echo "Checking for security vulnerabilities..."
+        {{.__TF_MISE_E}} go list -json -deps ./... 2>/dev/null | \
+          {{.__TF_MISE_E}} go run golang.org/x/vuln/cmd/govulncheck@latest -json ./... || true
+        echo "Security audit completed"
+
+  license-check:
+    desc: 'Check license compliance'
+    summary: |
+      Check license compliance
+
+      Analyzes all dependencies to verify their licenses are compatible
+      with the project's licensing requirements.
+
+      Examples:
+        task license-check                   # Check all licenses
+    cmds:
+      - |
+        echo "Checking licenses..."
+        {{.__TF_MISE_E}} go run github.com/google/go-licenses@latest check ./... || true
+        echo "License check completed"
+
+  # ==========================================================================
+  # Test Tasks
+  # ==========================================================================
+
+  test:
+    desc: 'Run tests with coverage'
+    summary: |
+      Run tests with coverage
+
+      Builds the application in debug mode, runs all tests with race
+      detection enabled (Unix only), and generates a coverage report.
+
+      Note: Race detection is disabled on Windows as it requires CGO.
+
+      Output:
+        - coverage.out  - Coverage data file
+        - coverage.html - HTML coverage report
+
+      Examples:
+        task test                            # Run all tests
+    cmds:
+      - task: build
+        vars:
+          GO_BUILD_TYPE: 'debug'
+      - cmd: |
+          {{.__TF_MISE_E}} gotestsum --format testname -- -race -coverprofile=coverage.out ./...
+        platforms: [darwin, linux]
+      - cmd: |
+          {{.__TF_MISE_E}} gotestsum --format testname -- -coverprofile=coverage.out ./...
+        platforms: [windows]
+      - task: test:gen-coverage
+
+  test:gen-coverage:
+    desc: 'Generate coverage report'
+    summary: |
+      Generate coverage report
+
+      Converts coverage.out data into an HTML report for viewing
+      in a browser. Requires coverage.out to exist (run test first).
+
+      Examples:
+        task test:gen-coverage               # Generate HTML report
+    silent: true
+    cmds:
+      - |
+        echo ""
+        echo "Generating coverage report..."
+        {{.__TF_MISE_E}} go tool cover -html=coverage.out -o coverage.html
+        echo ""
+        if [ -f "coverage.html" ]; then
+          echo "HTML coverage report: coverage.html"
+        fi
+        if [ -f "coverage.out" ]; then
+          echo "Coverage data: coverage.out"
+        fi
+        echo ""
+
+  # ==========================================================================
+  # Development Tools
+  # ==========================================================================
+
+  debug:
+    desc: 'Run application with debugger (dlv)'
+    summary: |
+      Run application with debugger (dlv)
+
+      Builds the application in debug mode and starts the Delve debugger.
+      On Windows, provides instructions for IDE-based debugging instead.
+
+      Prerequisites:
+        - Delve debugger: go install github.com/go-delve/delve/cmd/dlv@latest
+
+      Examples:
+        task debug                           # Start debugger
+    cmds:
+      - task: build
+        vars:
+          GO_BUILD_TYPE: 'debug'
+      - cmd: |
+          {{if eq OS "windows"}}
+          echo "CLI debugging not supported on Windows."
+          echo "Please use Visual Studio Code or your IDE's debugger instead."
+          echo ""
+          echo "Alternatively, install delve and run manually:"
+          echo "dlv debug ./cmd/cli"
+          exit 0
+          {{else}}
+          if command -v dlv >/dev/null 2>&1; then
+            echo "Starting delve debugger..."
+            dlv debug ./cmd/cli
+          else
+            echo "Delve debugger not found. Install with:"
+            echo "go install github.com/go-delve/delve/cmd/dlv@latest"
+            exit 1
+          fi
+          {{end}}
+
+  run:
+    desc: 'Run application'
+    summary: |
+      Run application
+
+      Builds the application in debug mode and runs it.
+      Useful for quick testing during development.
+
+      Examples:
+        task run                             # Build and run
+    deps:
+      - task: build
+        vars:
+          GO_BUILD_TYPE: 'debug'
+    vars:
+      EXE_EXT: '{{if eq OS "windows"}}.exe{{end}}'
+      OUTPUT_NAME: '{{.GO_PROJECT_NAME}}_{{OS}}_{{ARCH}}{{.EXE_EXT}}'
+    cmds:
+      - |
+        echo "Running application..."
+        ./build/{{.OUTPUT_NAME}}
+
+  # ==========================================================================
+  # Documentation Tasks
+  # ==========================================================================
+
+  docs:
+    desc: 'Build documentation'
+    summary: |
+      Build documentation
+
+      Builds the MkDocs documentation site to docs-html/.
+      Uses the configuration in mkdocs.yml.
+
+      Examples:
+        task docs                            # Build docs
+    cmds:
+      - |
+        {{.__TF_MISE_E}} uv run mkdocs build
+
+  docs:serve:
+    desc: 'Serve documentation locally with live reload'
+    summary: |
+      Serve documentation locally with live reload
+
+      Starts a local development server for the documentation.
+      Changes to documentation files are automatically reloaded.
+
+      URL: http://127.0.0.1:8000
+
+      Examples:
+        task docs:serve                      # Start docs server
+    cmds:
+      - |
+        echo "Starting documentation server..."
+        echo "Open http://127.0.0.1:8000 in your browser"
+        {{.__TF_MISE_E}} uv run mkdocs serve
+
+  # ==========================================================================
+  # Validation Tasks
+  # ==========================================================================
+
+  validate:
+    desc: 'Run full CI validation pipeline'
+    summary: |
+      Run full CI validation pipeline
+
+      Executes the complete validation workflow:
+        1. format  - Format all code
+        2. clean   - Remove artifacts
+        3. build   - Build application
+        4. lint    - Run all linters
+        5. run     - Test run the application
+        6. clean   - Remove artifacts again
+        7. test    - Run all tests
+        8. docs    - Build documentation
+
+      Use this before pushing to ensure CI will pass.
+
+      Examples:
+        task validate                        # Run full validation
+    silent: true
+    cmds:
+      - task: format
+      - task: clean
+      - task: build
+      - task: lint
+      - task: run
+      - task: clean
+      - task: test
+      - task: docs
+      - cmd: |
+          echo ""
+          echo "{{.__TF_HEADER_LINE}}"
+          echo "Validation successful"
+          echo "{{.__TF_HEADER_LINE}}"
+          echo ""
+
+  # ==========================================================================
+  # Utility Tasks
+  # ==========================================================================
+
+  print:env:
+    desc: 'Print current build environment variables'
+    cmds:
+      - task: common:print:env
+
+  # ==========================================================================
+  # Dependency Tasks (override to include Go-specific tasks)
+  # ==========================================================================
+
+  deps:sync:
+    desc: 'Install all project dependencies'
+    summary: |
+      Install all project dependencies
+
+      Installs all dependencies in order:
+        1. Mise tools (compilers, runtimes, build systems)
+        2. Node.js packages (linters, formatters)
+        3. Python packages (build scripts, docs)
+        4. Go dependencies (modules)
+
+      Run this after cloning the repository.
+
+      Examples:
+        task deps:sync
+    cmds:
+      - task: deps:sync:mise
+      - task: deps:sync:npm
+      - task: deps:sync:uv
+      - task: deps:sync:go
+
+  deps:sync:mise:
+    cmds:
+      - task: _deps:sync:mise
+
+  deps:sync:npm:
+    cmds:
+      - task: _deps:sync:npm
+
+  deps:sync:uv:
+    cmds:
+      - task: _deps:sync:uv
+
+  deps:clean:
+    desc: 'Clean all project dependencies'
+    summary: |
+      Clean all project dependencies
+
+      Removes all installed dependencies:
+        - Mise tool installations
+        - Node.js node_modules
+        - Python virtual environment
+        - Go module cache
+
+      Examples:
+        task deps:clean
+    cmds:
+      - task: deps:clean:mise
+      - task: deps:clean:npm
+      - task: deps:clean:uv
+      - task: deps:clean:go
+
+  deps:clean:mise:
+    cmds:
+      - task: _deps:clean:mise
+
+  deps:clean:npm:
+    cmds:
+      - task: _deps:clean:npm
+
+  deps:clean:uv:
+    cmds:
+      - task: _deps:clean:uv
+
+  deps:refresh:
+    desc: 'Refresh all project dependencies'
+    summary: |
+      Update all project dependencies
+
+      Updates all dependencies to their latest compatible versions:
+        1. Mise tools
+        2. Node.js packages
+        3. Python packages
+        4. Go packages
+
+      Examples:
+        task deps:refresh
+    cmds:
+      - task: deps:refresh:mise
+      - task: deps:refresh:npm
+      - task: deps:refresh:uv
+      - task: deps:refresh:go
+
+  deps:refresh:mise:
+    cmds:
+      - task: _deps:refresh:mise
+
+  deps:refresh:npm:
+    cmds:
+      - task: _deps:refresh:npm
+
+  deps:refresh:uv:
+    cmds:
+      - task: _deps:refresh:uv
+
+  # ==========================================================================
+  # Go-specific Dependency Tasks
+  # ==========================================================================
+
+  deps:sync:go:
+    desc: 'Install Go dependencies'
+    summary: |
+      Install Go dependencies
+
+      Downloads and verifies Go module dependencies.
+
+      Examples:
+        task deps:sync:go
+    cmds:
+      - |
+        echo "Installing Go dependencies..."
+        {{.__TF_MISE_E}} go mod download
+        {{.__TF_MISE_E}} go mod verify
+        echo "Go dependencies ready"
+
+  deps:clean:go:
+    desc: 'Clean Go dependencies'
+    summary: |
+      Clean Go dependencies
+
+      Removes the Go module cache.
+
+      Examples:
+        task deps:clean:go
+    cmds:
+      - |
+        echo "Cleaning Go dependencies..."
+        {{.__TF_MISE_E}} go clean -modcache || true
+        echo "Go modules cache cleaned"
+
+  deps:refresh:go:
+    desc: 'Refresh all Go packages (update dependencies)'
+    summary: |
+      Refresh all Go packages (update dependencies)
+
+      Updates all Go module dependencies to their latest versions.
+
+      Examples:
+        task deps:refresh:go
+    cmds:
+      - |
+        echo "Refreshing Go packages..."
+        {{.__TF_MISE_E}} go get -u ./...
+        {{.__TF_MISE_E}} go mod tidy
+        echo "Go packages refreshed"

@@ -1,0 +1,72 @@
+# Archives
+*.tar*
+*.tgz
+*.zip
+
+# Build Folders
+build/
+dist/
+out/
+
+# Cache folders
+.*cache/
+.task/
+
+# Code with AI
+.cwai
+.github/prompts
+
+# Coverage files
+*.lcov
+.coverage
+coverage/
+lib-cov
+
+# Diagnostic reports (https://nodejs.org/api/report.html)
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# dotenv environment variable files
+!.env.example
+.env
+.env.*
+
+# Jscpd reports
+.jscpd/html/
+
+# Logs
+*.log
+*.log*
+logs
+
+# mise local configs
+.mise.local.toml
+mise.local.toml
+
+# Node modules
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# PSScriptAnalyzer
+.github/scripts/
+
+# Python cache
+*.pyc
+*.pyd
+*.pyo
+.venv/
+__pycache__/
+
+# Runtime data
+*.pid
+*.pid.lock
+*.seed
+pids
+
+# TypeDoc
+docs-html/
+
+# PSScriptAnalyzer install script (generated)
+.github/scripts/install-psscriptanalyzer.ps1

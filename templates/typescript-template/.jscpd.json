@@ -1,0 +1,11 @@
+{
+  "absolute": true,
+  "blame": true,
+  "cache": true,
+  "gitignore": true,
+  "ignore": ["**/*.config.js", "**/*.config.mjs", "**/*.min.js", "coverage/**", "dist/**", "node_modules/**"],
+  "output": ".jscpd",
+  "reporters": ["badge", "console", "html"],
+  "silent": false,
+  "threshold": 1
+}

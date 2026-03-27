@@ -1,0 +1,67 @@
+version: 2
+updates:
+  # GitHub Actions dependencies
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '06:00'
+    assignees:
+      - 'dragoscirjan'
+    commit-message:
+      include: 'scope'
+      prefix: 'chore'
+      prefix-development: 'chore'
+    groups:
+      github-actions-dependencies:
+        patterns:
+          - '*'
+    labels:
+      - 'dependencies'
+      - 'github-actions'
+    open-pull-requests-limit: 3
+
+  # NPM dependencies (package.json)
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '06:00'
+    assignees:
+      - 'dragoscirjan'
+    commit-message:
+      include: 'scope'
+      prefix: 'chore'
+      prefix-development: 'chore'
+    groups:
+      npm-dependencies:
+        patterns:
+          - '*'
+    labels:
+      - 'dependencies'
+      - 'npm'
+    open-pull-requests-limit: 5
+
+  # Python dependencies (pyproject.toml)
+  - package-ecosystem: 'pip'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '06:00'
+    assignees:
+      - 'dragoscirjan'
+    commit-message:
+      include: 'scope'
+      prefix: 'chore'
+      prefix-development: 'chore'
+    groups:
+      python-dependencies:
+        patterns:
+          - '*'
+    labels:
+      - 'dependencies'
+      - 'python'
+    open-pull-requests-limit: 3

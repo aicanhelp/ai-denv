@@ -1,0 +1,15 @@
+.cache
+.coverage
+.jscpd
+.task
+.xmake
+build
+docs-html
+node_modules
+bazel-bin
+bazel-out
+bazel-testlogs
+bazel-cpp-template
+.git
+.github
+.vscode

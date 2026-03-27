@@ -1,0 +1,96 @@
+{
+  "author": "Templ Project",
+  "bin": {
+    "bootstrap": ".npx-install/bootstrap.js"
+  },
+  "bugs": {
+    "url": "https://github.com/templ-project/typescript/issues"
+  },
+  "description": "A TypeScript Bootstrap/Template project using modern tools and best practices",
+  "devDependencies": {
+    "@jscpd/badge-reporter": "^4.0.1",
+    "@templ-project/eslint": "^1.3.0",
+    "@templ-project/prettier": "^1.1.0",
+    "@templ-project/vitest": "^0.3.2",
+    "@types/node": "^25.0.3",
+    "@vitest/coverage-v8": "^4.0.16",
+    "esbuild": "^0.27.2",
+    "husky": "^9.1.7",
+    "jscpd": "^4.0.5",
+    "licensee": "^11.1.1",
+    "lint-staged": "^16.2.7",
+    "npm-run-all2": "^8.0.4",
+    "rimraf": "^6.1.2",
+    "tsx": "^4.21.0",
+    "typedoc": "0.28.15",
+    "typedoc-plugin-markdown": "4.9.0",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "exports": {
+    ".": {
+      "browser": {
+        "import": "./dist/browser/index.js",
+        "default": "./dist/browser/index.js"
+      },
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.cjs",
+      "default": "./dist/esm/index.js"
+    }
+  },
+  "files": [".npx-install", "dist"],
+  "homepage": "https://github.com/templ-project/typescript#readme",
+  "jsdelivr": "./dist/iife/your-lib.min.js",
+  "keywords": [
+    "bootstrap",
+    "browser",
+    "eslint",
+    "esm",
+    "import-maps",
+    "node",
+    "prettier",
+    "template",
+    "typescript",
+    "vitest"
+  ],
+  "license": "MIT",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.js",
+  "name": "@templ-project/typescript-template",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/templ-project/typescript.git"
+  },
+  "scripts": {
+    "build": "run-s build:*",
+    "build:browser": "tsc -p tsconfig.browser.json && esbuild dist/browser/index.js --bundle --format=esm --platform=browser --target=es2018 --outdir=dist/browser --splitting --minify --sourcemap --allow-overwrite",
+    "build:cjs": "tsc -p tsconfig.cjs.json && esbuild dist/cjs/index.js --bundle --format=cjs --platform=node --target=node16 --outfile=dist/cjs/index.cjs --sourcemap --allow-overwrite",
+    "build:esm": "tsc -p tsconfig.json && esbuild dist/esm/index.js --bundle --format=esm --platform=neutral --target=es2020 --outdir=dist/esm --splitting --sourcemap --allow-overwrite",
+    "build:iife": "tsc -p tsconfig.browser.json && esbuild dist/browser/index.js --bundle --format=iife --platform=browser --target=es2018 --outfile=dist/iife/your-lib.min.js --global-name=YourLib --minify --sourcemap",
+    "clean": "rimraf .nyc_output coverage dist docs",
+    "docs": "typedoc",
+    "duplicate-check": "jscpd src/",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "license-check": "licensee --errors-only",
+    "lint": "eslint --fix .",
+    "lint:check": "eslint .",
+    "prebuild": "run-s clean",
+    "pretest": "run-s clean build",
+    "serve": "npx --yes serve .",
+    "start": "tsx src/cli.ts",
+    "start:debug": "tsx --inspect-brk src/cli.ts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "validate": "run-s format lint duplicate-check test"
+  },
+  "sideEffects": false,
+  "type": "module",
+  "unpkg": "./dist/iife/your-lib.min.js",
+  "version": "1.3.1"
+}

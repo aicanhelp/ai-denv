@@ -1,0 +1,11 @@
+# Automatically collect source files
+file(GLOB_RECURSE SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
+)
+
+add_executable({{ project_name }} ${SOURCES})
+
+target_include_directories({{ project_name }} PRIVATE ${CMAKE_SOURCE_DIR}/include)
+
+# Link libraries if needed
+# target_link_libraries({{ project_name }} PRIVATE somelib)

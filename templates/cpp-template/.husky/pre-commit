@@ -1,0 +1,3 @@
+task format lint duplicate-check
+
+git add .

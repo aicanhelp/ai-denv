@@ -1,0 +1,77 @@
+[[tools."aqua:bazelbuild/bazel"]]
+version = "8.5.0"
+backend = "aqua:bazelbuild/bazel"
+"platforms.linux-arm64" = { checksum = "sha256:0c455abf42814ac53539ddd8147249a11b9e05c7dc83dbd6c8dfac1aec243d85", url = "https://github.com/bazelbuild/bazel/releases/download/8.5.0/bazel-8.5.0-linux-arm64"}
+"platforms.linux-x64" = { checksum = "sha256:18255229d933b8da10151bdef223a302744296b09af8af1988c93faa1ea3c71f", url = "https://github.com/bazelbuild/bazel/releases/download/8.5.0/bazel-8.5.0-linux-x86_64"}
+"platforms.macos-arm64" = { checksum = "sha256:a89f446641ab1cce603691cb7030865d1fb014e260ee5710615516e3cacd2414", url = "https://github.com/bazelbuild/bazel/releases/download/8.5.0/bazel-8.5.0-darwin-arm64"}
+"platforms.macos-x64" = { checksum = "sha256:84e1b822b6d076151a9a5b7a962e8230f565a17207196056bfe35303077b8147", url = "https://github.com/bazelbuild/bazel/releases/download/8.5.0/bazel-8.5.0-darwin-x86_64"}
+"platforms.windows-x64" = { checksum = "sha256:5001d020cd04a27f8ef9d1832ffd96ee4973e658a4601c7c9d62b0ae762fa204", url = "https://github.com/bazelbuild/bazel/releases/download/8.5.0/bazel-8.5.0-windows-x86_64.zip"}
+
+[[tools."github:Kitware/CMake"]]
+version = "4.2.1"
+backend = 'github:Kitware/CMake[platforms={ linux-x64 = { asset_pattern = "cmake-*-linux-x86_64.tar.gz" }, macos-arm64 = { asset_pattern = "cmake-*-macos-universal.tar.gz", bin_path = "CMake.app/Contents/bin" }, windows-x64 = { asset_pattern = "cmake-*-windows-x86_64.zip" } }]'
+"platforms.linux-arm64" = { checksum = "sha256:3e178207a2c42af4cd4883127f8800b6faf99f3f5187dccc68bfb2cc7808f5f7", url = "https://github.com/Kitware/CMake/releases/download/v4.2.1/cmake-4.2.1-linux-aarch64.tar.gz", url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/326044784"}
+"platforms.linux-x64" = { checksum = "sha256:c059bff1e97a2b6b5b0c0872263627486345ad0ed083298cb21cff2eda883980", url = "https://github.com/Kitware/CMake/releases/download/v4.2.1/cmake-4.2.1-linux-x86_64.tar.gz", url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/326044805"}
+"platforms.macos-arm64" = { checksum = "sha256:0bb18f295e52d7e9309980e361e79e76a1d8da67a1587255cbe3696ea998f597", url = "https://github.com/Kitware/CMake/releases/download/v4.2.1/cmake-4.2.1-macos-universal.tar.gz", url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/326044849"}
+"platforms.macos-x64" = { checksum = "sha256:0bb18f295e52d7e9309980e361e79e76a1d8da67a1587255cbe3696ea998f597", url = "https://github.com/Kitware/CMake/releases/download/v4.2.1/cmake-4.2.1-macos-universal.tar.gz", url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/326044849"}
+"platforms.windows-x64" = { checksum = "sha256:dfc2b2afac257555e3b9ce375b12b2883964283a366c17fec96cf4d17e4f1677", url = "https://github.com/Kitware/CMake/releases/download/v4.2.1/cmake-4.2.1-windows-x86_64.zip", url_api = "https://api.github.com/repos/Kitware/CMake/releases/assets/326045064"}
+
+[[tools."github:PowerShell/PowerShell"]]
+version = "7.5.4"
+backend = "github:PowerShell/PowerShell"
+"platforms.linux-arm64" = { checksum = "sha256:4b32d4cb86a43dfb83d5602d0294295bf22fafbf9e0785d1aaef81938cda92f8", url = "https://github.com/PowerShell/PowerShell/releases/download/v7.5.4/powershell-7.5.4-linux-arm64.tar.gz", url_api = "https://api.github.com/repos/PowerShell/PowerShell/releases/assets/305232364"}
+"platforms.linux-x64" = { checksum = "sha256:1fd7983fe56ca9e6233f126925edb24bf6b6b33e356b69996d925c4db94e2fef", url = "https://github.com/PowerShell/PowerShell/releases/download/v7.5.4/powershell-7.5.4-linux-x64.tar.gz", url_api = "https://api.github.com/repos/PowerShell/PowerShell/releases/assets/305232425"}
+"platforms.macos-arm64" = { checksum = "sha256:3aaadd7ca62f1e4dbe59145b6af24e926d61f8da8a4782bc535e500c184135f0", url = "https://github.com/PowerShell/PowerShell/releases/download/v7.5.4/powershell-7.5.4-osx-arm64.tar.gz", url_api = "https://api.github.com/repos/PowerShell/PowerShell/releases/assets/305232461"}
+"platforms.macos-x64" = { checksum = "sha256:cd16a04c1b99cdacbdc0337b0fd0da50dbf1a8b4e8437bcb4ca9118ef729211a", url = "https://github.com/PowerShell/PowerShell/releases/download/v7.5.4/powershell-7.5.4-osx-x64.tar.gz", url_api = "https://api.github.com/repos/PowerShell/PowerShell/releases/assets/305232543"}
+"platforms.windows-x64" = { checksum = "sha256:b40d192ae95ba6ccc4cc362ff4e1b18ca6fb5055bebbcd3920684e12701fa8f6", url = "https://github.com/PowerShell/PowerShell/releases/download/v7.5.4/PowerShell-7.5.4-win-x64.zip", url_api = "https://api.github.com/repos/PowerShell/PowerShell/releases/assets/305232969"}
+
+[[tools."github:koalaman/shellcheck"]]
+version = "0.11.0"
+backend = 'github:koalaman/shellcheck[platforms={ linux-x64 = { asset_pattern = "shellcheck-*.linux.x86_64.tar.xz" }, macos-arm64 = { asset_pattern = "shellcheck-*.darwin.aarch64.tar.xz" }, windows-x64 = { asset_pattern = "shellcheck-*.zip" } }]'
+"platforms.linux-arm64" = { checksum = "sha256:12b331c1d2db6b9eb13cfca64306b1b157a86eb69db83023e261eaa7e7c14588", url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.aarch64.tar.xz", url_api = "https://api.github.com/repos/koalaman/shellcheck/releases/assets/279056934"}
+"platforms.linux-x64" = { checksum = "sha256:8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198", url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz", url_api = "https://api.github.com/repos/koalaman/shellcheck/releases/assets/279056942"}
+"platforms.macos-arm64" = { checksum = "sha256:56affdd8de5527894dca6dc3d7e0a99a873b0f004d7aabc30ae407d3f48b0a79", url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.darwin.aarch64.tar.xz", url_api = "https://api.github.com/repos/koalaman/shellcheck/releases/assets/279056932"}
+"platforms.macos-x64" = { checksum = "sha256:3c89db4edcab7cf1c27bff178882e0f6f27f7afdf54e859fa041fca10febe4c6", url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.darwin.x86_64.tar.xz", url_api = "https://api.github.com/repos/koalaman/shellcheck/releases/assets/279056930"}
+"platforms.windows-x64" = { checksum = "sha256:8a4e35ab0b331c85d73567b12f2a444df187f483e5079ceffa6bda1faa2e740e", url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.zip", url_api = "https://api.github.com/repos/koalaman/shellcheck/releases/assets/279056944"}
+
+[[tools."github:llvm/llvm-project"]]
+version = "20.1.8"
+backend = 'github:llvm/llvm-project[version_prefix=llvmorg-,platforms={ linux-arm64 = { asset_pattern = "LLVM-*-Linux-ARM64.tar.xz" }, linux-x64 = { asset_pattern = "LLVM-*-Linux-X64.tar.xz" }, macos-arm64 = { asset_pattern = "LLVM-*-macOS-ARM64.tar.xz" }, windows-x64 = { asset_pattern = "clang?llvm-*-x86_64-pc-windows-msvc.tar.xz" } }]'
+"platforms.linux-arm64" = { checksum = "sha256:b855cc17d935fdd83da82206b7a7cfc680095efd1e9e8182c4a05e761958bef8", url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/LLVM-20.1.8-Linux-ARM64.tar.xz", url_api = "https://api.github.com/repos/llvm/llvm-project/releases/assets/271272676"}
+"platforms.linux-x64" = { checksum = "sha256:1ead36b3dfcb774b57be530df42bec70ab2d239fbce9889447c7a29a4ddc1ae6", url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/LLVM-20.1.8-Linux-X64.tar.xz", url_api = "https://api.github.com/repos/llvm/llvm-project/releases/assets/271269785"}
+"platforms.macos-arm64" = { checksum = "sha256:a9a22f450d35f1f73cd61ab6a17c6f27d8f6051d56197395c1eb397f0c9bbec4", url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/LLVM-20.1.8-macOS-ARM64.tar.xz", url_api = "https://api.github.com/repos/llvm/llvm-project/releases/assets/271304990"}
+"platforms.macos-x64" = { checksum = "sha256:a9a22f450d35f1f73cd61ab6a17c6f27d8f6051d56197395c1eb397f0c9bbec4", url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/LLVM-20.1.8-macOS-ARM64.tar.xz", url_api = "https://api.github.com/repos/llvm/llvm-project/releases/assets/271304990"}
+"platforms.windows-x64" = { checksum = "sha256:f229769f11d6a6edc8ada599c0cda964b7dee6ab1a08c6cf9dd7f513e85b107f", url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/clang%2Bllvm-20.1.8-x86_64-pc-windows-msvc.tar.xz", url_api = "https://api.github.com/repos/llvm/llvm-project/releases/assets/271333338"}
+
+[tools."github:llvm/llvm-project".options]
+version_prefix = "llvmorg-"
+
+[[tools."github:xmake-io/xmake"]]
+version = "3.0.6"
+backend = 'github:xmake-io/xmake[bin=xmake,platforms={ linux-x64 = { asset_pattern = "xmake-bundle-v*.linux.x86_64", bin = "xmake" }, macos-arm64 = { asset_pattern = "xmake-bundle-v*.macos.arm64", bin = "xmake" }, macos-x64 = { asset_pattern = "xmake-bundle-v*.macos.x86_64", bin = "xmake" }, windows-x64 = { asset_pattern = "xmake-bundle-v*.win64.exe", bin = "xmake.exe" } }]'
+"platforms.linux-x64" = { checksum = "sha256:cdb394d6867f7f255483a8a43064429277fbd83345638e09012a4d08d4f6822f", url = "https://github.com/xmake-io/xmake/releases/download/v3.0.6/xmake-bundle-v3.0.6.linux.x86_64", url_api = "https://api.github.com/repos/xmake-io/xmake/releases/assets/336027141"}
+"platforms.macos-arm64" = { checksum = "sha256:92e496ec6e41a083a4e35d2d91e2ff4685b4f7a6b614ae942e0ddbf08cad5f8f", url = "https://github.com/xmake-io/xmake/releases/download/v3.0.6/xmake-bundle-v3.0.6.macos.arm64", url_api = "https://api.github.com/repos/xmake-io/xmake/releases/assets/336016154"}
+"platforms.macos-x64" = { checksum = "sha256:6db68c6d8a384fe79d53e2e95197fb4226d888b2525affcc6cbf1ef5cd7b7f35", url = "https://github.com/xmake-io/xmake/releases/download/v3.0.6/xmake-bundle-v3.0.6.macos.x86_64", url_api = "https://api.github.com/repos/xmake-io/xmake/releases/assets/336020230"}
+"platforms.windows-x64" = { checksum = "sha256:eb88936d6fde61566a67a06c69d55cb439d94af1e3ea708d1c184a23610eed5b", url = "https://github.com/xmake-io/xmake/releases/download/v3.0.6/xmake-bundle-v3.0.6.win64.exe", url_api = "https://api.github.com/repos/xmake-io/xmake/releases/assets/336084877"}
+
+[[tools.node]]
+version = "22.21.1"
+backend = "core:node"
+"platforms.linux-arm64" = { checksum = "sha256:c86830dedf77f8941faa6c5a9c863bdfdd1927a336a46943decc06a38f80bfb2", url = "https://nodejs.org/dist/v22.21.1/node-v22.21.1-linux-arm64.tar.gz"}
+"platforms.linux-x64" = { checksum = "sha256:219a152ea859861d75adea578bdec3dce8143853c13c5187f40c40e77b0143b2", url = "https://nodejs.org/dist/v22.21.1/node-v22.21.1-linux-x64.tar.gz"}
+"platforms.macos-arm64" = { checksum = "sha256:c170d6554fba83d41d25a76cdbad85487c077e51fa73519e41ac885aa429d8af", url = "https://nodejs.org/dist/v22.21.1/node-v22.21.1-darwin-arm64.tar.gz"}
+"platforms.macos-x64" = { checksum = "sha256:8e3dc89614debe66c2a6ad2313a1adb06eb37db6cd6c40d7de6f7d987f7d1afd", url = "https://nodejs.org/dist/v22.21.1/node-v22.21.1-darwin-x64.tar.gz"}
+"platforms.windows-x64" = { checksum = "sha256:3c624e9fbe07e3217552ec52a0f84e2bdc2e6ffa7348f3fdfb9fbf8f42e23fcf", url = "https://nodejs.org/dist/v22.21.1/node-v22.21.1-win-x64.zip"}
+
+[[tools.python]]
+version = "3.11.14"
+backend = "core:python"
+
+[[tools.uv]]
+version = "0.9.21"
+backend = "aqua:astral-sh/uv[cargo:cargo-tarpaulin=latest,cargo:cargo-audit=latest,cargo:cargo-deny=latest]"
+"platforms.linux-arm64" = { checksum = "sha256:03a49fb609888032dbc3be9fd114b50fc9bce8b73b3df319746ae08d1fbdea83", url = "https://github.com/astral-sh/uv/releases/download/0.9.21/uv-aarch64-unknown-linux-musl.tar.gz"}
+"platforms.linux-x64" = { checksum = "sha256:7abc29b3a06a99fb23564400fe884f5798a1786dc2ca05b6e0f70c53de748ab2", url = "https://github.com/astral-sh/uv/releases/download/0.9.21/uv-x86_64-unknown-linux-musl.tar.gz"}
+"platforms.macos-arm64" = { checksum = "sha256:473977236ef8ac5937c80de08a3599cb6ed6021d0e015e10f88076767877a153", url = "https://github.com/astral-sh/uv/releases/download/0.9.21/uv-aarch64-apple-darwin.tar.gz"}
+"platforms.macos-x64" = { checksum = "sha256:26390da48bd55e21ab62451a80ad240ef6df10d4c48ec199cbb34c18b4288983", url = "https://github.com/astral-sh/uv/releases/download/0.9.21/uv-x86_64-apple-darwin.tar.gz"}
+"platforms.windows-x64" = { checksum = "sha256:d27952e73183ef8f6ee8c2a50cf8b3f2e08e01b6a9279a00a85cb261ea8d8337", url = "https://github.com/astral-sh/uv/releases/download/0.9.21/uv-x86_64-pc-windows-msvc.zip"}

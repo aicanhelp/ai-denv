@@ -1,0 +1,12 @@
+{
+  "extends": "@templ-project/tsconfig/cjs",
+  "compilerOptions": {
+    "declaration": true,
+    "declarationMap": true,
+    "outDir": "./dist/cjs",
+    "rootDir": "./src",
+    "sourceMap": true
+  },
+  "exclude": ["**/*.spec.ts", "**/*.test.ts", "coverage", "dist", "node_modules"],
+  "include": ["src/**/*.ts"]
+}

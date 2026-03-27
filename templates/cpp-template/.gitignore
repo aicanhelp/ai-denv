@@ -1,0 +1,140 @@
+# Archives
+*.tar*
+*.tgz
+*.zip
+
+# Build Folders
+build/
+build-*/
+dist/
+out/
+/Release/
+
+# Build Systems - Generated files
+.bazelrc
+.xmake
+BUILD.bazel
+BUILD.xmake
+bazel-*
+CMakeLists.txt
+CMakeLists.txt*
+compile_commands.json
+MODULE.bazel
+# TODO: remove this file from gitignore when switching to bazel
+MODULE.bazel.lock
+src/CMakeLists.txt
+tests/BUILD.bazel
+WORKSPACE
+xmake.lua
+
+# Cache folders
+.*cache/
+.task/
+
+# Code with AI
+.cwai
+.github/prompts
+
+# Compiled Dynamic libraries
+*.dll
+*.dylib
+*.so
+
+# Compiled Object files
+*.lo
+*.o
+*.obj
+*.slo
+
+# Compiled Static libraries
+*.a
+*.la
+*.lai
+*.lib
+
+# Coverage files
+*.gcov
+*.lcov
+.coverage
+coverage/
+lib-cov
+
+# Debug information files
+*.dwo
+
+# Debugger Files
+*.pdb
+
+# Dependencies folder (Conan output)
+/lib
+
+# Diagnostic reports (https://nodejs.org/api/report.html)
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# dotenv environment variable files
+!.env.example
+.env
+.env.*
+
+# Executables
+*.app
+*.exe
+*.out
+
+# Fortran module files
+*.mod
+*.smod
+
+# Jscpd reports
+.jscpd/html/
+
+# Linker files
+*.ilk
+
+# Logs
+*.log
+*.log*
+logs
+
+# mise local configs
+.mise.local.toml
+mise.local.toml
+
+# MkDocs
+docs-html/
+
+# Node modules
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Prerequisites
+*.d
+
+# PSScriptAnalyzer
+.github/scripts/
+
+# Python cache
+*.egg
+*.egg-info/
+*.pyc
+*.pyd
+*.pyo
+.ruff_cache/
+.venv/
+__pycache__/
+
+# Runtime data
+*.pid
+*.pid.lock
+*.seed
+pids
+
+# PSScriptAnalyzer install script (generated)
+.github/scripts/install-psscriptanalyzer.ps1

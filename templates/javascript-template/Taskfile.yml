@@ -1,0 +1,334 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# ============================================================================
+# JavaScript Template - Taskfile
+# ============================================================================
+# This is the main Taskfile for the JavaScript template project.
+# Common tasks are imported from .taskfiles/ modules.
+# ============================================================================
+version: '3'
+
+includes:
+  # ==========================================================================
+  # Shared Modules (sync from generic using: task sync:from:generic)
+  # ==========================================================================
+  common:
+    taskfile: .taskfiles/Taskfile.common.yml
+    internal: true
+  deps:
+    taskfile: .taskfiles/Taskfile.deps.yml
+  quality:
+    taskfile: .taskfiles/Taskfile.quality.yml
+    internal: true
+  sync:
+    taskfile: .taskfiles/Taskfile.sync.yml
+
+tasks:
+  # ==========================================================================
+  # Build Tasks
+  # ==========================================================================
+
+  build:
+    desc: 'Build project'
+    summary: |
+      Build the JavaScript project
+
+      Compiles/bundles JavaScript files using the npm build script.
+
+      Examples:
+        task build
+    cmds:
+      - task: common:print:env
+      - cmd: |
+          {{.__TF_MISE_E}} npm run build
+
+  # ==========================================================================
+  # Clean Tasks
+  # ==========================================================================
+
+  clean:
+    desc: 'Clean all build artifacts'
+    summary: |
+      Clean all build artifacts
+
+      Runs the npm clean script to remove compiled files.
+
+      Examples:
+        task clean
+    cmds:
+      - cmd: |
+          {{.__TF_MISE_E}} npm run clean
+
+  # ==========================================================================
+  # Code Quality Tasks (Project-specific overrides)
+  # ==========================================================================
+
+  format:
+    desc: 'Format code and fix issues'
+    cmds:
+      - task: quality:format:prettier
+      - task: quality:format:ruff
+      - cmd: echo "Code format completed"
+
+  format:check:
+    desc: 'Check code formatting without fixing'
+    cmds:
+      - task: quality:format:check:prettier
+      - task: quality:format:check:ruff
+      - cmd: echo "Code format check completed"
+
+  lint:
+    desc: 'Run linter and fix issues'
+    summary: |
+      Run all linters and fix issues
+
+      Runs ESLint for JavaScript and config files,
+      plus Python, PowerShell, and shell script linters.
+
+      Examples:
+        task lint
+    cmds:
+      - task: quality:lint:eslint
+      - task: quality:lint:pylint
+      - task: quality:lint:pwshlint
+      - task: quality:lint:shlint
+      - cmd: echo "Linting completed"
+
+  lint:check:
+    desc: 'Run linter without fixing'
+    cmds:
+      - task: quality:lint:check:eslint
+      - task: quality:lint:check:pylint
+      - task: quality:lint:check:pwshlint
+      - task: quality:lint:check:shlint
+      - cmd: echo "Linting check completed"
+
+  lint-staged:
+    desc: 'Run linter on staged files and fix issues'
+    cmds:
+      - task: quality:lint-staged
+
+  duplicate-check:
+    desc: 'Check for duplicate code using jscpd'
+    cmds:
+      - task: quality:duplicate-check
+
+  # ==========================================================================
+  # Low-level Quality Tasks (used by .lintstagedrc.yml)
+  # ==========================================================================
+
+  eslint:
+    desc: 'Run ESLint'
+    cmds:
+      - task: quality:eslint
+        vars:
+          CLI_ARGS: '{{.CLI_ARGS}}'
+
+  prettier:
+    desc: 'Run Prettier'
+    cmds:
+      - task: quality:prettier
+        vars:
+          CLI_ARGS: '{{.CLI_ARGS}}'
+
+  pylint:
+    desc: 'Run Pylint'
+    cmds:
+      - task: quality:pylint
+        vars:
+          CLI_ARGS: '{{.CLI_ARGS}}'
+
+  ruff:
+    desc: 'Run Ruff'
+    cmds:
+      - task: quality:ruff
+        vars:
+          CLI_ARGS: '{{.CLI_ARGS}}'
+
+  pwshlint_py:
+    desc: 'Run PSScriptAnalyzer via pwshlint.py'
+    cmds:
+      - task: quality:pwshlint_py
+        vars:
+          CLI_ARGS: '{{.CLI_ARGS}}'
+
+  shlint_py:
+    desc: 'Run ShellCheck via shlint.py'
+    cmds:
+      - task: quality:shlint_py
+        vars:
+          CLI_ARGS: '{{.CLI_ARGS}}'
+
+  # ==========================================================================
+  # JavaScript-specific Tasks
+  # ==========================================================================
+
+  audit-check:
+    desc: 'Check for security vulnerabilities in dependencies'
+    summary: |
+      Check for security vulnerabilities
+
+      Runs npm audit to scan dependencies for known security issues.
+
+      Examples:
+        task audit-check
+    silent: true
+    cmds:
+      - |
+        {{.__TF_MISE_E}} npm audit --audit-level=moderate || true
+
+  license-check:
+    desc: 'Check project license compliance'
+    summary: |
+      Check license compliance
+
+      Verifies all dependencies have acceptable licenses.
+
+      Examples:
+        task license-check
+    cmds:
+      - cmd: npm run license-check
+
+  # ==========================================================================
+  # Test Tasks
+  # ==========================================================================
+
+  test:
+    desc: 'Run tests'
+    summary: |
+      Run all tests
+
+      Executes the test suite using the npm test script.
+
+      Examples:
+        task test
+    cmds:
+      - cmd: |
+          {{.__TF_MISE_E}} npm run test
+
+  test:coverage:
+    desc: 'Generate test coverage report'
+    summary: |
+      Generate test coverage report
+
+      Runs tests with coverage enabled and generates a report.
+
+      Examples:
+        task test:coverage
+    silent: true
+    cmds:
+      - cmd: |
+          {{.__TF_MISE_E}} npm run test:coverage
+
+  # ==========================================================================
+  # Development Tools
+  # ==========================================================================
+
+  run:
+    desc: 'Run application'
+    summary: |
+      Build and run the application
+
+      Builds the project and runs it using npm start.
+
+      Examples:
+        task run
+    cmds:
+      - cmd: |
+          {{.__TF_MISE_E}} npm run start
+
+  debug:
+    desc: 'Run application with debugger (Node.js inspector)'
+    summary: |
+      Run the application in debug mode
+
+      Builds the project and runs it with Node.js inspector enabled.
+      Connect your debugger to the inspector URL shown in the output.
+
+      Examples:
+        task debug
+    cmds:
+      - cmd: |
+          echo "Starting Node.js with inspector..."
+          echo "Open chrome://inspect in Chrome to connect debugger"
+          {{.__TF_MISE_E}} npm run start:debug
+
+  # ==========================================================================
+  # Documentation Tasks
+  # ==========================================================================
+
+  docs:
+    desc: 'Build documentation with JSDoc'
+    summary: |
+      Build project documentation
+
+      Generates API documentation using JSDoc.
+
+      Examples:
+        task docs
+    cmds:
+      - cmd: |
+          {{.__TF_MISE_E}} npm run docs
+
+  docs:serve:
+    desc: 'Serve documentation locally'
+    summary: |
+      Serve documentation locally
+
+      Starts a local server to view documentation.
+
+      Examples:
+        task docs:serve
+    cmds:
+      - cmd: |
+          echo "Starting documentation server..."
+          echo "Open http://localhost:3000 in your browser"
+          {{.__TF_MISE_E}} npm run serve
+
+  # ==========================================================================
+  # Validation Tasks
+  # ==========================================================================
+
+  validate:
+    desc: 'Run CI pipeline for validation'
+    summary: |
+      Run full CI validation pipeline
+
+      Executes the complete validation workflow:
+        1. format  - Format all code
+        2. clean   - Remove artifacts
+        3. build   - Build project
+        4. lint    - Run all linters
+        5. run     - Test run the application
+        6. clean   - Remove artifacts again
+        7. test    - Run all tests
+        8. docs    - Build documentation
+
+      Use this before pushing to ensure CI will pass.
+
+      Examples:
+        task validate
+    silent: true
+    cmds:
+      - task: format
+      - task: clean
+      - task: build
+      - task: lint
+      - task: run
+      - task: clean
+      - task: test
+      - task: docs
+      - cmd: |
+          echo ""
+          echo "{{.__TF_HEADER_LINE}}"
+          echo "Validation successful"
+          echo "{{.__TF_HEADER_LINE}}"
+          echo ""
+
+  # ==========================================================================
+  # Utility Tasks
+  # ==========================================================================
+
+  print:env:
+    desc: 'Print current build environment variables'
+    cmds:
+      - task: common:print:env

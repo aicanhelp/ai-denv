@@ -1,0 +1,19 @@
+[[tools."github:PowerShell/PowerShell"]]
+version = "7.5.4"
+backend = 'github:PowerShell/PowerShell[platforms={ linux-x64 = { asset_pattern = "powershell-*-linux-x64.tar.gz" }, macos-arm64 = { asset_pattern = "powershell-*-osx-arm64.tar.gz" }, windows-x64 = { asset_pattern = "PowerShell-*-win-x64.zip" } }]'
+
+[[tools."github:koalaman/shellcheck"]]
+version = "0.11.0"
+backend = 'github:koalaman/shellcheck[platforms={ linux-x64 = { asset_pattern = "shellcheck-*.linux.x86_64.tar.xz" }, macos-arm64 = { asset_pattern = "shellcheck-*.darwin.aarch64.tar.xz" }, windows-x64 = { asset_pattern = "shellcheck-*.zip" } }]'
+
+[[tools.node]]
+version = "25.2.1"
+backend = "core:node"
+
+[[tools.python]]
+version = "3.11.14"
+backend = "core:python"
+
+[[tools.uv]]
+version = "0.9.18"
+backend = "aqua:astral-sh/uv[cargo:cargo-tarpaulin=latest,cargo:cargo-audit=latest,cargo:cargo-deny=latest]"

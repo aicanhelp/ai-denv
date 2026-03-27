@@ -1,0 +1,29 @@
+{
+  "corrections": false,
+  "ignore": [
+    {
+      "author": "Dmitry Nizovtsev"
+    },
+    {
+      "author": "Vladimir Keleshev"
+    }
+  ],
+  "license": "MIT",
+  "licenses": {
+    "spdx": [
+      "0BSD",
+      "Apache-2.0",
+      "BSD-2-Clause",
+      "BSD-3-Clause",
+      "BlueOak-1.0.0",
+      "CC-BY-3.0",
+      "CC-BY-4.0",
+      "CC0-1.0",
+      "ISC",
+      "MIT",
+      "Python-2.0",
+      "Unlicense"
+    ],
+    "valid": ["WTFPL"]
+  }
+}

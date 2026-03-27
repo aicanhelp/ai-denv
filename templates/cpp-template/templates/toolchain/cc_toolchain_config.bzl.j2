@@ -1,0 +1,31 @@
+"""A simple C++ toolchain configuration."""
+
+def _impl(ctx):
+    return cc_common.create_cc_toolchain_config_info(
+        ctx = ctx,
+        toolchain_identifier = "k8",
+        host_system_name = "local",
+        target_system_name = "local",
+        target_cpu = "k8",
+        target_libc = "unknown",
+        compiler = "gcc",
+        abi_version = "unknown",
+        abi_libc_version = "unknown",
+        tool_paths = {
+            "ar": "/usr/bin/ar",
+            "cpp": "/usr/bin/cpp",
+            "gcc": "/usr/bin/gcc",
+            "gcov": "/usr/bin/gcov",
+            "ld": "/usr/bin/ld",
+            "nm": "/usr/bin/nm",
+            "objcopy": "/usr/bin/objcopy",
+            "objdump": "/usr/bin/objdump",
+            "strip": "/usr/bin/strip",
+        },
+    )
+
+cc_toolchain_config = rule(
+    implementation = _impl,
+    attrs = {},
+    provides = [CcToolchainConfigInfo],
+)

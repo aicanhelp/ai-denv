@@ -1,0 +1,86 @@
+site_name: C++ Template Documentation
+site_description: Modern C++ project template with comprehensive tooling
+site_author: Templ Project
+site_dir: docs-html
+repo_url: https://github.com/templ-project/cpp
+repo_name: templ-project/cpp
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+
+plugins:
+  - search
+  - mkdoxy:
+      projects:
+        cpp-template:
+          src-dirs: include src
+          full-doc: true
+          doxy-cfg:
+            FILE_PATTERNS: '*.cpp *.hpp *.h'
+            RECURSIVE: true
+            EXTRACT_ALL: true
+            EXTRACT_PRIVATE: true
+            EXTRACT_STATIC: true
+            JAVADOC_AUTOBRIEF: true
+            OPTIMIZE_OUTPUT_FOR_C: false
+            GENERATE_HTML: false
+            GENERATE_XML: true
+            XML_OUTPUT: xml
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quickstart.md
+  - API Reference:
+      - Overview: api/index.md
+      - Classes: api/classes.md
+      - Functions: api/functions.md
+  - Development:
+      - Contributing: development/contributing.md
+      - Testing: development/testing.md
+      - Coverage: development/coverage.md
+  - About:
+      - License: about/license.md
+      - Changelog: about/changelog.md

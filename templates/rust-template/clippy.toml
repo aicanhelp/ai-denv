@@ -1,0 +1,25 @@
+# Clippy configuration for strict linting
+# Following Rust API Guidelines and best practices
+
+# Note: This file configures clippy thresholds and behavior settings.
+# To enable/disable specific lints, use #[allow(clippy::lint_name)] in code
+# or pass flags to cargo clippy command line.
+
+# Cognitive complexity threshold (default: 25)
+cognitive-complexity-threshold = 15
+
+# Maximum number of arguments for a function (default: 7)
+too-many-arguments-threshold = 7
+
+# Maximum lines in a function (default: 100)
+too-many-lines-threshold = 100
+
+# Type complexity threshold (default: 250)
+type-complexity-threshold = 250
+
+# Disallow these function/method names
+disallowed-names = ["foo", "bar", "baz"]
+
+# For cargo clippy command line, use:
+# cargo clippy -- -W clippy::all -W clippy::pedantic -W clippy::nursery -W clippy::cargo \
+#   -A clippy::module_name_repetitions -A clippy::missing_errors_doc -A clippy::missing_panics_doc

@@ -1,0 +1,81 @@
+[settings]
+experimental = true
+lockfile = true
+
+############################################################################
+# Tools Configuration                                                      #
+############################################################################
+
+[tools]
+
+# ==========================================================================
+# Compilers
+# ==========================================================================
+
+# TODO: add here any build tool you may need (e.g. cmake, make, ninja, etc.)
+
+# ==========================================================================
+# Languages & Runtimes (alphabetically sorted)
+# ==========================================================================
+
+# Node.js for jscpd & eslint
+#
+[tools.node]
+version = "latest"
+
+# Python and package manager
+#
+[tools.python]
+version = "3.11" # Will install 3.11 or above based on availability
+
+[tools.uv]
+version = "latest"
+
+# ==========================================================================
+# CLI Tools (alphabetically sorted by tool name)
+# ==========================================================================
+
+# TODO: add here any build tool dependencies you may need that you cannot add
+# to a config file (e.g. cargo:cargo-audit, npm:jscpd, etc.)
+
+# https://github.com/PowerShell/PowerShell/releases
+# e.g. https://github.com/PowerShell/PowerShell/releases/download/v7.5.4/powershell-7.5.4-osx-arm64.tar.gz
+# NOTE: mise extraction may lose the Modules/ folder structure.
+#       The postinstall hook runs .scripts/fix-mise-pwsh to re-extract properly.
+#
+[tools."github:PowerShell/PowerShell"]
+version = "latest"
+
+[tools."github:PowerShell/PowerShell".platforms]
+linux-x64 = { asset_pattern = "powershell-*-linux-x64.tar.gz" }
+macos-arm64 = { asset_pattern = "powershell-*-osx-arm64.tar.gz" }
+windows-x64 = { asset_pattern = "PowerShell-*-win-x64.zip" }
+
+# https://github.com/koalaman/shellcheck/releases
+# e.g. https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.darwin.x86_64.tar.xz
+#
+[tools."github:koalaman/shellcheck"]
+version = "0.11.0"
+
+[tools."github:koalaman/shellcheck".platforms]
+linux-x64 = { asset_pattern = "shellcheck-*.linux.x86_64.tar.xz" }
+macos-arm64 = { asset_pattern = "shellcheck-*.darwin.aarch64.tar.xz" }
+windows-x64 = { asset_pattern = "shellcheck-*.zip" }
+
+# # https://github.com/bats-core/bats-core/releases
+# # Bash testing framework
+# #
+# [tools."github:bats-core/bats-core"]
+# version = "latest"
+
+############################################################################
+# Hooks                                                                    #
+############################################################################
+
+[hooks]
+# Fix PowerShell installation (mise extraction loses Modules/ folder)
+# Windows: use powershell.exe (Windows PowerShell 5.1, always available) to run fix
+# Linux/macOS: run bash script
+postinstall = "{% if os() == 'windows' %}powershell.exe -NoProfile -ExecutionPolicy Bypass -File .scripts/fix-mise-pwsh.ps1{% else %}bash .scripts/fix-mise-pwsh.sh 2>/dev/null{% endif %}"
+
+#   enter = "rustup component add rust-analyzer 2>/dev/null || true"

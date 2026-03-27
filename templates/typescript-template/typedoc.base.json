@@ -1,0 +1,23 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "exclude": ["**/*.spec.ts", "**/*.test.ts", "**/cli.ts"],
+  "excludeExternals": true,
+  "excludePrivate": true,
+  "excludeProtected": false,
+  "gitRevision": "main",
+  "hideGenerator": false,
+  "includeVersion": true,
+  "name": "TypeScript Template",
+  "navigation": {
+    "includeCategories": true,
+    "includeGroups": true
+  },
+  "navigationLinks": {
+    "GitHub": "https://github.com/templ-project/typescript"
+  },
+  "out": "docs-html",
+  "plugin": [],
+  "readme": "README.md",
+  "theme": "default",
+  "tsconfig": "./tsconfig.json"
+}

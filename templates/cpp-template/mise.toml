@@ -1,0 +1,116 @@
+[settings]
+always_keep_download = true
+experimental = true
+lockfile = true
+
+############################################################################
+# Tools Configuration                                                      #
+############################################################################
+
+[tools]
+
+# ==========================================================================
+# Simple tools (version only, no platform-specific config)
+# ==========================================================================
+
+# https://github.com/bazelbuild/bazel
+# Using aqua backend for better handling of raw executables (no archive)
+"aqua:bazelbuild/bazel" = "8"
+
+# Node.js for jscpd & eslint
+node = "22"
+
+# Python and package manager (for linting helpers)
+python = "3.11"
+uv = "latest"
+
+# ==========================================================================
+# Compilers
+# ==========================================================================
+
+# https://github.com/llvm/llvm-project/releases
+# Using github backend with asset_pattern for proper lockfile support
+#
+[tools."github:llvm/llvm-project"]
+version = "20.1.8"
+version_prefix = "llvmorg-"
+
+[tools."github:llvm/llvm-project".platforms]
+linux-x64 = { asset_pattern = "LLVM-*-Linux-X64.tar.xz" }
+linux-arm64 = { asset_pattern = "LLVM-*-Linux-ARM64.tar.xz" }
+macos-arm64 = { asset_pattern = "LLVM-*-macOS-ARM64.tar.xz" }
+# Windows: use regex pattern since the filename contains '+' which confuses glob
+windows-x64 = { asset_pattern = "clang?llvm-*-x86_64-pc-windows-msvc.tar.xz" }
+
+# ==========================================================================
+# Build Tools (alphabetically sorted)
+# ==========================================================================
+
+# https://github.com/Kitware/CMake/releases
+#
+[tools."github:Kitware/CMake"]
+version = "latest"
+
+[tools."github:Kitware/CMake".platforms]
+linux-x64 = { asset_pattern = "cmake-*-linux-x86_64.tar.gz" }
+macos-arm64 = { asset_pattern = "cmake-*-macos-universal.tar.gz", bin_path = "CMake.app/Contents/bin" }
+windows-x64 = { asset_pattern = "cmake-*-windows-x86_64.zip" }
+
+# https://github.com/xmake-io/xmake/releases
+# NOTE: XMake releases raw binaries (not archives) for Linux/macOS.
+#       The postinstall hook makes them executable.
+#
+[tools."github:xmake-io/xmake"]
+version = "3.0.6"
+bin = "xmake"
+
+[tools."github:xmake-io/xmake".platforms]
+linux-x64 = { asset_pattern = "xmake-bundle-v*.linux.x86_64", bin = "xmake" }
+macos-arm64 = { asset_pattern = "xmake-bundle-v*.macos.arm64", bin = "xmake" }
+macos-x64 = { asset_pattern = "xmake-bundle-v*.macos.x86_64", bin = "xmake" }
+windows-x64 = { asset_pattern = "xmake-bundle-v*.win64.exe", bin = "xmake.exe" }
+
+# ==========================================================================
+# CLI Tools (alphabetically sorted by tool name)
+# ==========================================================================
+
+# https://github.com/koalaman/shellcheck/releases
+# e.g. https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.darwin.x86_64.tar.xz
+#
+[tools."github:koalaman/shellcheck"]
+version = "0.11.0"
+
+[tools."github:koalaman/shellcheck".platforms]
+linux-x64 = { asset_pattern = "shellcheck-*.linux.x86_64.tar.xz" }
+macos-arm64 = { asset_pattern = "shellcheck-*.darwin.aarch64.tar.xz" }
+windows-x64 = { asset_pattern = "shellcheck-*.zip" }
+
+# https://github.com/PowerShell/PowerShell/releases
+# e.g. https://github.com/PowerShell/PowerShell/releases/download/v7.5.4/powershell-7.5.4-linux-x64.tar.gz
+# NOTE: Use self-contained builds (not fxdependent) to avoid requiring .NET runtime.
+#       Linux pattern uses exact version format to avoid matching fxdependent variants.
+#       The postinstall hook runs .scripts/fix-mise-pwsh to re-extract properly.
+#
+[tools."github:PowerShell/PowerShell"]
+version = "7.5.4"
+
+[tools."github:PowerShell/PowerShell".platforms]
+# Pattern must NOT match fxdependent versions. Using specific version pattern.
+# powershell-7.5.4-linux-x64.tar.gz (75MB self-contained) vs
+# powershell-7.5.4-linux-x64-fxdependent.tar.gz (24MB needs .NET)
+linux-x64 = { asset_pattern = "powershell-7.5.4-linux-x64.tar.gz" }
+macos-arm64 = { asset_pattern = "powershell-*-osx-arm64.tar.gz" }
+windows-x64 = { asset_pattern = "PowerShell-*-win-x64.zip" }
+
+############################################################################
+# Hooks                                                                    #
+############################################################################
+
+[hooks]
+# Fix installations on postinstall:
+# 1. PowerShell: mise extraction loses Modules/ folder, needs re-extraction
+# 2. XMake: raw binaries (not archives) need executable permission on Unix
+#
+# Windows: use powershell.exe (Windows PowerShell 5.1, always available) to run fix
+# Linux/macOS: run bash script for PowerShell fix, then chmod xmake binary
+postinstall = "{% if os() == 'windows' %}powershell.exe -NoProfile -ExecutionPolicy Bypass -File .scripts/fix-mise-pwsh.ps1{% else %}bash .scripts/fix-mise-pwsh.sh 2>/dev/null; chmod +x ~/.local/share/mise/installs/github-xmake-io-xmake/*/xmake 2>/dev/null || true{% endif %}"

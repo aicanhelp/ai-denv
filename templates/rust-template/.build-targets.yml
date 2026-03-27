@@ -1,0 +1,37 @@
+# Build targets for cross-compilation
+# Each OS runner in CI will build all architectures for that OS
+#
+# Format:
+#   os: Operating system (linux, darwin, windows)
+#   arch: Architecture identifier for output naming (x86_64, aarch64, i686)
+#   target: Rust target triple
+#
+# To list all supported targets: rustc --print target-list
+#
+# Note: Only targets matching the current OS will be built.
+# This ensures native compilation (no cross-compilation issues with OS-specific libraries).
+
+targets:
+  # Linux targets
+  - os: linux
+    arch: x86_64
+    target: x86_64-unknown-linux-gnu
+  - os: linux
+    arch: i686
+    target: i686-unknown-linux-gnu
+
+  # macOS targets
+  - os: darwin
+    arch: aarch64
+    target: aarch64-apple-darwin
+  - os: darwin
+    arch: x86_64
+    target: x86_64-apple-darwin
+
+  # Windows targets
+  - os: windows
+    arch: x86_64
+    target: x86_64-pc-windows-msvc
+  - os: windows
+    arch: i686
+    target: i686-pc-windows-msvc

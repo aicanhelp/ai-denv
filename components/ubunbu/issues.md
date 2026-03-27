@@ -56,9 +56,15 @@ options iwlwifi power_save=0
 sudo sysctl -w net.core.rmem_default=262144
 sudo sysctl -w net.core.rmem_max=4194304
 
-- ubuntu默认使用ipv6，修改关闭
+- ubuntu默认使用ipv6，修改关闭d
 sudo vim /etc/gai.conf # gai 是 GetAddrInfo()缩写
 定位到#precedence ::ffff:0:0/96 100
 移除#
 保存文件并退出：shift + zz (ZZ)
 重新启动。
+
+####  4、输入法不响应
+使用snap安装的code好像有问题，使用sudo apt-get install code没有问题。
+
+#### 5、桌面内容没有了
+有一个Desktop Icons NG 的扩展，开启就可以了。 

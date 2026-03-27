@@ -1,0 +1,22 @@
+---
+Checks: |
+  bugprone-*,
+  cppcoreguidelines-*,
+  google-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  -modernize-use-trailing-return-type,
+  -modernize-use-ranges,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -readability-magic-numbers,
+  -readability-identifier-naming,
+  -readability-identifier-length,
+  -readability-named-parameter,
+  -clang-diagnostic-c++98-compat,
+  -clang-diagnostic-c++98-compat-pedantic,
+  -clang-diagnostic-unused-macros,
+  -clang-diagnostic-unused-command-line-argument
+WarningsAsErrors: ''
+HeaderFilterRegex: '(include|src|tests)/.*'
+FormatStyle: google

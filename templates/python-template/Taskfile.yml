@@ -1,0 +1,379 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# ============================================================================
+# Generic Template - Taskfile
+# ============================================================================
+# This is the main Taskfile for the generic (shell/PowerShell) template.
+# Common tasks are imported from .taskfiles/ modules.
+# ============================================================================
+version: '3'
+
+includes:
+  # ==========================================================================
+  # Shared Modules (sync these to other projects)
+  # ==========================================================================
+  common:
+    taskfile: .taskfiles/Taskfile.common.yml
+    internal: true
+  deps:
+    taskfile: .taskfiles/Taskfile.deps.yml
+  quality:
+    taskfile: .taskfiles/Taskfile.quality.yml
+    internal: true
+  sync:
+    taskfile: .taskfiles/Taskfile.sync.yml
+
+tasks:
+  # ==========================================================================
+  # Build Tasks
+  # ==========================================================================
+
+  build:
+    desc: 'Build project'
+    summary: |
+      Build the project
+
+      For the generic template, this is a placeholder that echoes the
+      build environment. Override this in language-specific templates.
+
+      Examples:
+        task build
+    cmds:
+      - cmd: |
+          echo "{{.__TF_HEADER_LINE}}"
+          echo "Building for {{OS}}/{{ARCH}}"
+          echo "{{.__TF_HEADER_LINE}}"
+      - task: common:print:env
+      - cmd: echo "This is bash, building is not necessary for scripts."
+        platforms: [darwin, linux]
+      - cmd: echo "This is PowerShell, building is not necessary for scripts."
+        platforms: [windows]
+    sources:
+      - src/**/*.{sh,ps1}
+
+  # ==========================================================================
+  # Clean Tasks
+  # ==========================================================================
+
+  clean:
+    desc: 'Clean all build artifacts'
+    summary: |
+      Clean all build artifacts
+
+      Removes all generated files and directories including:
+        - .task/     - Task cache
+        - build/     - Build output
+        - dist/      - Distribution archives
+        - docs-html/ - Built documentation
+
+      Examples:
+        task clean
+    cmds:
+      - cmd: |
+          echo "Cleaning build artifacts..."
+          rm -rf \
+            .task \
+            build \
+            dist \
+            docs-html
+          echo "Build artifacts cleaned"
+
+  # ==========================================================================
+  # Code Quality Tasks (Project-specific overrides)
+  # ==========================================================================
+
+  format:
+    desc: 'Format code and fix issues'
+    cmds:
+      - task: quality:format:prettier
+      - task: quality:format:ruff
+      - cmd: echo "✅ Code format completed"
+
+  format:check:
+    desc: 'Check code formatting without fixing'
+    cmds:
+      - task: quality:format:check:prettier
+      - task: quality:format:check:ruff
+      - cmd: echo "✅ Code format check completed"
+
+  lint:
+    desc: 'Run linter and fix issues'
+    cmds:
+      - task: quality:lint:eslint
+      - task: quality:lint:pylint
+      - task: quality:lint:pwshlint
+      - task: quality:lint:shlint
+      - cmd: echo "✅ Linting completed"
+
+  lint:check:
+    desc: 'Run linter without fixing'
+    cmds:
+      - task: quality:lint:check:eslint
+      - task: quality:lint:check:pylint
+      - task: quality:lint:check:pwshlint
+      - task: quality:lint:check:shlint
+      - cmd: echo "✅ Linting check completed"
+
+  lint-staged:
+    desc: 'Run linter on staged files and fix issues'
+    cmds:
+      - task: quality:lint-staged
+
+  duplicate-check:
+    desc: 'Check for duplicate code using jscpd'
+    cmds:
+      - task: quality:duplicate-check
+
+  # ==========================================================================
+  # Low-level Quality Tasks (used by .lintstagedrc.yml)
+  # ==========================================================================
+
+  eslint:
+    desc: 'Run ESLint'
+    cmds:
+      - task: quality:eslint
+        vars:
+          CLI_ARGS: '{{.CLI_ARGS}}'
+
+  prettier:
+    desc: 'Run Prettier'
+    cmds:
+      - task: quality:prettier
+        vars:
+          CLI_ARGS: '{{.CLI_ARGS}}'
+
+  pylint:
+    desc: 'Run Pylint'
+    cmds:
+      - task: quality:pylint
+        vars:
+          CLI_ARGS: '{{.CLI_ARGS}}'
+
+  ruff:
+    desc: 'Run Ruff'
+    cmds:
+      - task: quality:ruff
+        vars:
+          CLI_ARGS: '{{.CLI_ARGS}}'
+
+  pwshlint_py:
+    desc: 'Run PSScriptAnalyzer via pwshlint.py'
+    cmds:
+      - task: quality:pwshlint_py
+        vars:
+          CLI_ARGS: '{{.CLI_ARGS}}'
+
+  shlint_py:
+    desc: 'Run ShellCheck via shlint.py'
+    cmds:
+      - task: quality:shlint_py
+        vars:
+          CLI_ARGS: '{{.CLI_ARGS}}'
+
+  # ==========================================================================
+  # Development Tools
+  # ==========================================================================
+
+  debug:
+    desc: 'Run application with debugger (gdb on Linux/macOS)'
+    summary: |
+      Run the application in debug mode
+
+      For the generic template, this builds first then shows
+      a placeholder message. Override in language-specific templates.
+
+      Examples:
+        task debug
+    cmds:
+      - task: build
+      - cmd: echo "Running (Debug mode)..."
+
+  run:
+    desc: 'Run application'
+    summary: |
+      Build and run the application
+
+      Runs the CLI script appropriate for the current platform.
+
+      Examples:
+        task run
+    deps:
+      - task: build
+    cmds:
+      - cmd: bash src/cli.sh
+        platforms: [darwin, linux]
+      - cmd: |
+          {{.__TF_MISE_E_PWSH_FILE}} src/cli.ps1
+        platforms: [windows]
+
+  # ==========================================================================
+  # Documentation Tasks
+  # ==========================================================================
+
+  docs:
+    desc: 'Build documentation'
+    summary: |
+      Build project documentation
+
+      Generates static HTML documentation using MkDocs.
+      Output is placed in docs-html/.
+
+      Examples:
+        task docs
+    cmds:
+      - |
+        {{.__TF_MISE_E}} uv run mkdocs build
+
+  docs:serve:
+    desc: 'Serve documentation locally with live reload'
+    summary: |
+      Serve documentation with live reload
+
+      Starts a local development server at http://127.0.0.1:8000.
+      Changes to documentation are reflected immediately.
+
+      Examples:
+        task docs:serve
+    cmds:
+      - |
+        echo "Starting documentation server..."
+        echo "Open http://127.0.0.1:8000 in your browser"
+        {{.__TF_MISE_E}} uv run mkdocs serve
+
+  # ==========================================================================
+  # Test Tasks
+  # ==========================================================================
+
+  test:
+    desc: 'Run tests'
+    summary: |
+      Run all tests
+
+      Runs Bats tests (bash) on Unix and Pester tests (PowerShell)
+      on all platforms.
+
+      Examples:
+        task test
+    cmds:
+      - task: test:bats
+      - task: test:pester
+      - cmd: echo "All tests completed"
+
+  test:bats:
+    aliases: [test:bash]
+    desc: 'Run Bats tests for bash scripts'
+    summary: |
+      Run Bats tests for bash scripts
+
+      Runs .bats test files in the test/ directory.
+      Skipped on Windows (bash testing not supported).
+
+      Examples:
+        task test:bats
+        task test:bash
+    cmds:
+      - cmd: |
+          {{.__TF_MISE_E}} npx -y bats test/*.bats
+        platforms: [darwin, linux]
+      - cmd: |
+          echo "Skipping Bats tests on Windows (bash testing not supported)."
+        platforms: [windows]
+    silent: true
+
+  test:gen-coverage:
+    desc: 'Generate test coverage report'
+    summary: |
+      Generate test coverage report
+
+      For the generic template, coverage is not implemented.
+      Override in language-specific templates.
+
+      Examples:
+        task test:gen-coverage
+    cmds:
+      - cmd: echo "Didn't include testing (and coverage) for bash/pwsh."
+    silent: true
+
+  test:pester:
+    aliases: [test:powershell, test:pwsh]
+    desc: 'Run Pester tests for PowerShell scripts'
+    summary: |
+      Run Pester tests for PowerShell scripts
+
+      Runs Pester test files in the test/ directory.
+
+      Examples:
+        task test:pester
+        task test:pwsh
+    cmds:
+      - cmd: |
+          {{.__TF_MISE_E_PWSH_FILE}} .scripts/run-pester.ps1
+
+  # ==========================================================================
+  # Utility Tasks
+  # ==========================================================================
+
+  print:env:
+    desc: 'Print current build environment variables'
+    cmds:
+      - task: common:print:env
+
+  pwsh:
+    desc: 'Run PowerShell scripts'
+    summary: |
+      Run a PowerShell command
+
+      Internal utility task for running PowerShell commands.
+
+      Variables:
+        CODE: PowerShell code to execute (default: "echo 'Hello from PowerShell!'")
+
+      Examples:
+        task pwsh CODE="Get-Date"
+    vars:
+      CODE: '{{.CODE | default "echo \"Hello from PowerShell!\""}}'
+    cmds:
+      - cmd: |
+          temp=$(mktemp)
+          echo $temp
+          # {{.__TF_MISE_E}} pwsh -Command "{{.CODE}}"
+    silent: true
+
+  # ==========================================================================
+  # Validation Tasks
+  # ==========================================================================
+
+  validate:
+    desc: 'Run CI pipeline for validation'
+    summary: |
+      Run full CI validation pipeline
+
+      Executes the complete validation workflow:
+        1. format  - Format all code
+        2. clean   - Remove artifacts
+        3. build   - Build project
+        4. lint    - Run all linters
+        5. run     - Test run the application
+        6. clean   - Remove artifacts again
+        7. test    - Run all tests
+        8. docs    - Build documentation
+
+      Use this before pushing to ensure CI will pass.
+
+      Examples:
+        task validate
+    cmds:
+      - task: format
+      - task: clean
+      - task: build
+      - task: lint
+      - task: run
+      - task: clean
+      - task: test
+      - task: docs
+      - cmd: |
+          echo ""
+          echo "{{.__TF_HEADER_LINE}}"
+          echo "✅ Validation successful"
+          echo "{{.__TF_HEADER_LINE}}"
+          echo ""
+    silent: true

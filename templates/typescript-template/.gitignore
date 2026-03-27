@@ -1,0 +1,142 @@
+# Archives
+*.tar*
+*.tgz
+*.zip
+
+# Build Folders
+.next/
+.nuxt/
+build/
+dist/
+out/
+
+# Cache folders
+.*cache/
+.task/
+*.tsbuildinfo
+
+# Code with AI
+.cwai
+.github/prompts
+
+# Coverage files
+*.lcov
+.coverage
+.nyc_output/
+coverage/
+lib-cov
+
+# Diagnostic reports (https://nodejs.org/api/report.html)
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Docusaurus cache and generated files
+.docusaurus
+
+# dotenv environment variable files
+!.env.example
+.env
+.env.*
+
+# DynamoDB Local files
+.dynamodb/
+
+# Firebase cache directory
+.firebase/
+
+# FuseBox cache
+.fusebox/
+
+# Gatsby files
+.cache/
+
+# Jscpd reports
+.jscpd/html/
+
+# Logs
+*.log
+*.log*
+logs
+
+# mise local configs
+.mise.local.toml
+mise.local.toml
+
+# Node modules
+.grunt
+.node_repl_history
+.npm
+bower_components
+jspm_packages/
+node_modules/
+web_modules/
+
+# node-waf configuration
+.lock-wscript
+
+# OS
+.DS_Store
+Thumbs.db
+
+# PSScriptAnalyzer
+.github/scripts/
+
+# Python cache
+*.pyc
+*.pyd
+*.pyo
+.ruff_cache/
+.venv/
+__pycache__/
+
+# Runtime data
+*.pid
+*.pid.lock
+*.seed
+pids
+
+# Serverless directories
+.serverless/
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# Sveltekit cache directory
+.svelte-kit/
+
+# TernJS port file
+.tern-port
+
+# TypeDoc
+docs-html/
+
+# Vite logs files
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# vitepress build output
+**/.vitepress/dist
+
+# vitepress cache directory
+**/.vitepress/cache
+
+# vuepress build output
+.vuepress/dist
+
+# vuepress v2.x temp and cache directory
+.cache
+.temp
+
+# yarn v3
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+.pnp.*
+.yarn/*
+
+# Yarn Integrity file
+.yarn-integrity
+
+# PSScriptAnalyzer install script (generated)
+.github/scripts/install-psscriptanalyzer.ps1

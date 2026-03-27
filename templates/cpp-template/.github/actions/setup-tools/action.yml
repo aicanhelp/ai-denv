@@ -1,0 +1,264 @@
+name: 'Setup Development Tools'
+description: 'Install Task, mise, and project tools with caching'
+inputs:
+  github-token:
+    description: Github Token to be passed to the installer tools
+    required: true
+  refresh-deps:
+    description: 'Force refresh dependencies by bypassing cache'
+    required: false
+    default: 'false'
+  cache-version:
+    description: 'Cache version suffix - increment to invalidate all caches'
+    required: false
+    default: '001'
+runs:
+  using: 'composite'
+  steps:
+    # ==========================================================================
+    # Task
+    # ==========================================================================
+    - name: Setup Task
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      uses: go-task/setup-task@v1
+
+    # ==========================================================================
+    # Mise Installation
+    # ==========================================================================
+    - name: Install Mise (Unix)
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        curl https://mise.run | sh
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        mise --version
+
+    - name: Install Mise (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        choco install mise -y --force --no-progress
+        mise self-update
+        mise --version
+
+    # ==========================================================================
+    # Cache Restore - Mise Downloads (includes LLVM archive ~1GB compressed)
+    # This avoids GitHub API rate limits by reusing downloaded archives
+    # ==========================================================================
+    - name: Restore Mise downloads cache (Unix)
+      id: mise-downloads-cache-unix
+      if: runner.os != 'Windows'
+      uses: actions/cache/restore@v4
+      with:
+        key: mise-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ inputs.cache-version }}
+        restore-keys: |
+          mise-downloads-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cache-version }}-
+        path: |
+          ~/.local/share/mise/downloads
+
+    - name: Restore Mise downloads cache (Windows)
+      id: mise-downloads-cache-windows
+      if: runner.os == 'Windows'
+      uses: actions/cache/restore@v4
+      with:
+        key: mise-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ inputs.cache-version }}
+        restore-keys: |
+          mise-downloads-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cache-version }}-
+        path: |
+          ~/AppData/Local/mise/downloads
+
+    # ==========================================================================
+    # Cache Restore - Mise Installs (smaller tools only, excludes LLVM ~7GB)
+    # LLVM is excluded because it's too large; it will be extracted from downloads
+    # ==========================================================================
+    - name: Restore Mise installs cache (Unix)
+      id: mise-installs-cache-unix
+      if: runner.os != 'Windows'
+      uses: actions/cache/restore@v4
+      with:
+        key: mise-installs-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ inputs.cache-version }}
+        restore-keys: |
+          mise-installs-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cache-version }}-
+        path: |
+          ~/.local/share/mise/installs/github-*
+          ~/.local/share/mise/installs/node
+          ~/.local/share/mise/installs/python
+          ~/.local/share/mise/installs/uv
+          !~/.local/share/mise/installs/http-*
+
+    - name: Restore Mise installs cache (Windows)
+      id: mise-installs-cache-windows
+      if: runner.os == 'Windows'
+      uses: actions/cache/restore@v4
+      with:
+        key: mise-installs-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ inputs.cache-version }}
+        restore-keys: |
+          mise-installs-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cache-version }}-
+        path: |
+          ~/AppData/Local/mise/installs/github-*
+          ~/AppData/Local/mise/installs/node
+          ~/AppData/Local/mise/installs/python
+          ~/AppData/Local/mise/installs/uv
+          !~/AppData/Local/mise/installs/http-*
+
+    # ==========================================================================
+    # Cache Restore - Python venv
+    # ==========================================================================
+    - name: Restore Python venv cache
+      id: venv-cache
+      uses: actions/cache/restore@v4
+      with:
+        key: venv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('uv.lock') }}-${{ inputs.cache-version }}
+        restore-keys: |
+          venv-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cache-version }}-
+        path: .venv
+
+    # ==========================================================================
+    # Cache Restore - Node modules
+    # ==========================================================================
+    - name: Restore Node modules cache
+      id: node-cache
+      uses: actions/cache/restore@v4
+      with:
+        key: node-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}-${{ inputs.cache-version }}
+        restore-keys: |
+          node-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cache-version }}-
+        path: node_modules
+
+    # ==========================================================================
+    # System Dependencies
+    # ==========================================================================
+    - name: Install system dependencies (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential lcov
+
+    - name: Install system dependencies (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        brew install gcc lcov
+
+    # ==========================================================================
+    # Dependencies Sync/Refresh
+    # ==========================================================================
+    - name: Sync Dependencies (full)
+      if: |
+        (runner.os != 'Windows' && steps.mise-installs-cache-unix.outputs.cache-hit != 'true') ||
+        (runner.os == 'Windows' && steps.mise-installs-cache-windows.outputs.cache-hit != 'true')
+      shell: bash
+      env:
+        GITHUB_API_TOKEN: ${{ inputs.github-token }}
+        MISE_GITHUB_TOKEN: ${{ inputs.github-token }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        MISE_GITHUB_GITHUB_ATTESTATIONS: '0'
+        MISE_GITHUB_SLSA: '0'
+        MISE_HTTP_TIMEOUT: 600
+        PYTHONIOENCODING: utf-8
+      run: |
+        echo "::group::Syncing all dependencies (cache miss or refresh requested)"
+        export ACTION=$([ "${{ inputs.refresh-depsh }}" = "true" ] && echo "refresh" || echo "sync")
+        task deps:$ACTION
+        echo "::endgroup::"
+
+    - name: Sync Dependencies (cache hit - npm/uv only)
+      if: |
+        ((runner.os != 'Windows' && steps.mise-installs-cache-unix.outputs.cache-hit == 'true') ||
+         (runner.os == 'Windows' && steps.mise-installs-cache-windows.outputs.cache-hit == 'true'))
+      shell: bash
+      env:
+        GITHUB_API_TOKEN: ${{ inputs.github-token }}
+        MISE_HTTP_TIMEOUT: 600
+        PYTHONIOENCODING: utf-8
+      run: |
+        echo "::group::Mise installs cache hit - syncing mise (for LLVM), npm and uv only"
+        echo "Running mise install (LLVM will be extracted from cached download if available)"
+
+        export ACTION=$([ "${{ inputs.refresh-depsh }}" = "true" ] && echo "refresh" || echo "sync")
+
+        task deps:$ACTION:mise
+
+        # Only sync npm if node_modules cache missed
+        if [ "${{ steps.node-cache.outputs.cache-hit }}" != "true" ]; then
+          echo "Node modules cache miss - running npm install"
+          task deps:$ACTION:npm
+        else
+          echo "Node modules cache hit - skipping npm install"
+        fi
+
+        # Only sync uv if venv cache missed
+        if [ "${{ steps.venv-cache.outputs.cache-hit }}" != "true" ]; then
+          echo "Python venv cache miss - running uv sync"
+          task deps:$ACTION:uv
+        else
+          echo "Python venv cache hit - skipping uv sync"
+        fi
+        echo "::endgroup::"
+
+    # ==========================================================================
+    # Cache Save - Only when cache was not hit (avoids unnecessary uploads)
+    # ==========================================================================
+    - name: Save Mise downloads cache (Unix)
+      if: |
+        runner.os != 'Windows' &&
+        steps.mise-downloads-cache-unix.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        key: mise-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ inputs.cache-version }}
+        path: |
+          ~/.local/share/mise/downloads
+
+    - name: Save Mise downloads cache (Windows)
+      if: |
+        runner.os == 'Windows' &&
+        steps.mise-downloads-cache-windows.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        key: mise-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ inputs.cache-version }}
+        path: |
+          ~/AppData/Local/mise/downloads
+
+    - name: Save Mise installs cache (Unix)
+      if: |
+        runner.os != 'Windows' &&
+        steps.mise-installs-cache-unix.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        key: mise-installs-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ inputs.cache-version }}
+        path: |
+          ~/.local/share/mise/installs/github-*
+          ~/.local/share/mise/installs/node
+          ~/.local/share/mise/installs/python
+          ~/.local/share/mise/installs/uv
+          !~/.local/share/mise/installs/http-*
+
+    - name: Save Mise installs cache (Windows)
+      if: |
+        runner.os == 'Windows' &&
+        steps.mise-installs-cache-windows.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        key: mise-installs-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ inputs.cache-version }}
+        path: |
+          ~/AppData/Local/mise/installs/github-*
+          ~/AppData/Local/mise/installs/node
+          ~/AppData/Local/mise/installs/python
+          ~/AppData/Local/mise/installs/uv
+          !~/AppData/Local/mise/installs/http-*
+
+    - name: Save Python venv cache
+      if: steps.venv-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        key: venv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('uv.lock') }}-${{ inputs.cache-version }}
+        path: .venv
+
+    - name: Save Node modules cache
+      if: steps.node-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        key: node-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}-${{ inputs.cache-version }}
+        path: node_modules

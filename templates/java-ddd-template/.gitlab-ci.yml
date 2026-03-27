@@ -1,0 +1,26 @@
+before_script:
+- export GRADLE_USER_HOME=`pwd`/.gradle
+
+cache:
+  paths:
+  - .gradle/wrapper
+  - .gradle/caches
+
+stages:
+- build
+- test
+
+test:
+  tags:
+  - gradle7.4
+  - java18
+  services:
+  - hoily.com/ci:xxx
+  script:
+  - gradle clean test -Dfile.encoding=UTF-8
+  - sonar
+  artifacts:
+    paths:
+    - "*/build/reports/tests"
+    when: always
+    expire_in: 1 day
